@@ -10,12 +10,13 @@ interface DataTableProps {
     rowsWithErrors: number;
     totalValue: number;
   };
+  transferredIds?: Set<string>;
 }
 
 type SortField = 'date' | 'value' | 'paymentType' | 'cpf';
 type SortDirection = 'asc' | 'desc';
 
-export const DataTable: React.FC<DataTableProps> = ({ data, stats }) => {
+export const DataTable: React.FC<DataTableProps> = ({ data, stats, transferredIds }) => {
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [filterPaymentType, setFilterPaymentType] = useState<string>('all');
@@ -32,6 +33,14 @@ export const DataTable: React.FC<DataTableProps> = ({ data, stats }) => {
   // Filter and sort data
   const processedData = useMemo(() => {
     let filtered = [...data];
+
+    // Remove transferred items
+    if (transferredIds && transferredIds.size > 0) {
+      filtered = filtered.filter((_, index) => {
+        const itemId = `row-${index}-${_.date}-${_.value}`;
+        return !transferredIds.has(itemId);
+      });
+    }
 
     // Apply filters
     if (filterPaymentType !== 'all') {
@@ -67,7 +76,7 @@ export const DataTable: React.FC<DataTableProps> = ({ data, stats }) => {
     });
 
     return filtered;
-  }, [data, filterPaymentType, filterCPF, sortField, sortDirection]);
+  }, [data, transferredIds, filterPaymentType, filterCPF, sortField, sortDirection]);
 
   // Pagination
   const totalPages = Math.ceil(processedData.length / itemsPerPage);

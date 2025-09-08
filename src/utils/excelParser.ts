@@ -87,8 +87,26 @@ export async function parseExcelFile(file: File): Promise<ParseResult> {
       };
     }
 
-    const headers = jsonData[0].map(h => String(h || '').toLowerCase().trim());
-    const columnIndexes = findColumnIndexes(headers);
+    // Find the real header row (may not be the first row)
+    const headerInfo = findRealHeaderRow(jsonData);
+    
+    if (!headerInfo) {
+      return {
+        success: false,
+        data: [],
+        errors: ['Não foi possível encontrar cabeçalhos válidos. Verifique se o arquivo contém colunas: Data, Histórico e Valor'],
+        warnings: [],
+        stats: {
+          totalRows: 0,
+          validRows: 0,
+          rowsWithWarnings: 0,
+          rowsWithErrors: 0,
+          totalValue: 0,
+        },
+      };
+    }
+
+    const { headerRowIndex, columnIndexes } = headerInfo;
     
     const missingColumns: string[] = [];
     if (columnIndexes.date === -1) missingColumns.push('Data');
@@ -101,10 +119,10 @@ export async function parseExcelFile(file: File): Promise<ParseResult> {
       return {
         success: false,
         data: [],
-        errors: [`Colunas essenciais não encontradas: ${missingColumns.join(', ')}`],
+        errors: [`Colunas essenciais não encontradas: ${missingColumns.join(', ')}. Sugestões de nomes aceitos: Data/Date, Histórico/Descrição, Valor/Valor(R$)`],
         warnings: [],
         stats: {
-          totalRows: jsonData.length - 1,
+          totalRows: jsonData.length - headerRowIndex - 1,
           validRows: 0,
           rowsWithWarnings: 0,
           rowsWithErrors: 0,
@@ -120,7 +138,7 @@ export async function parseExcelFile(file: File): Promise<ParseResult> {
     let rowsWithWarnings = 0;
     let rowsWithErrors = 0;
 
-    for (let i = 1; i < jsonData.length; i++) {
+    for (let i = headerRowIndex + 1; i < jsonData.length; i++) {
       const row = jsonData[i];
       
       // Skip completely empty rows
@@ -175,6 +193,30 @@ export async function parseExcelFile(file: File): Promise<ParseResult> {
   }
 }
 
+function findRealHeaderRow(jsonData: any[][]) {
+  // Look through the first 10 rows to find the real header
+  for (let i = 0; i < Math.min(10, jsonData.length); i++) {
+    const row = jsonData[i];
+    if (!row) continue;
+    
+    const headers = row.map(h => String(h || '').toLowerCase().trim());
+    const columnIndexes = findColumnIndexes(headers);
+    
+    // Check if we found at least date and history columns
+    if (columnIndexes.date !== -1 && columnIndexes.history !== -1) {
+      // Also need either value column or both credit/debit columns
+      if (columnIndexes.value !== -1 || (columnIndexes.credit !== -1 && columnIndexes.debit !== -1)) {
+        return {
+          headerRowIndex: i,
+          columnIndexes,
+        };
+      }
+    }
+  }
+  
+  return null;
+}
+
 function findColumnIndexes(headers: string[]) {
   const indexes = {
     date: -1,
@@ -186,6 +228,9 @@ function findColumnIndexes(headers: string[]) {
 
   headers.forEach((header, index) => {
     const normalized = header.toLowerCase().trim();
+    
+    // Skip completely empty headers
+    if (!normalized) return;
     
     // Check for date column
     if (indexes.date === -1 && COLUMN_MAPPINGS.date.some(name => normalized.includes(name))) {
