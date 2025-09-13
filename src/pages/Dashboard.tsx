@@ -28,6 +28,12 @@ export const Dashboard: React.FC = () => {
   const [searchError, setSearchError] = useState<string | null>(null);
   const [searchSuccess, setSearchSuccess] = useState<string | null>(null);
   const [transferredIds, setTransferredIds] = useState<Set<string>>(new Set());
+  const [notFoundHistory, setNotFoundHistory] = useState<Array<{
+    value: string;
+    timestamp: Date;
+    status: 'not_found';
+  }>>([]);
+  const [showRestartModal, setShowRestartModal] = useState(false);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -73,6 +79,7 @@ export const Dashboard: React.FC = () => {
     // Reset transfer tracking
     setTransferredIds(new Set());
     setConferredItems([]);
+    setNotFoundHistory([]);
     const fileInput = document.getElementById('fileInput') as HTMLInputElement;
     if (fileInput) fileInput.value = '';
   };
@@ -80,6 +87,43 @@ export const Dashboard: React.FC = () => {
   const handleDateFilter = () => {
     console.log('Filtrando por data:', filterDate);
     // Implementar lógica de filtro
+  };
+
+  const handleRestartCurrentDay = () => {
+    setShowRestartModal(true);
+  };
+
+  const handleConfirmRestart = () => {
+    // Clear all transferred items (Conferência de Caixa)
+    setConferredItems([]);
+    
+    // Clear transferred IDs to restore banking table to initial state
+    setTransferredIds(new Set());
+    
+    // Clear not found history
+    setNotFoundHistory([]);
+    
+    // Clear current input and messages
+    setConferenceValue('');
+    setSearchError(null);
+    setSearchSuccess('Dia atual reiniciado com sucesso.');
+    setTimeout(() => setSearchSuccess(null), 3000);
+    
+    // Close modal
+    setShowRestartModal(false);
+    
+    // Focus back on the input field
+    setTimeout(() => {
+      const input = document.querySelector('input[placeholder*="Digite o valor"]') as HTMLInputElement;
+      if (input) {
+        input.focus();
+        input.select();
+      }
+    }, 100);
+  };
+
+  const handleCancelRestart = () => {
+    setShowRestartModal(false);
   };
 
   // Conference value search and transfer logic
@@ -103,7 +147,38 @@ export const Dashboard: React.FC = () => {
       const searchResult = searchValueMatches(conferenceValue, parseResult.data);
       
       if (!searchResult.hasMatches) {
+        // Parse and format value as Brazilian currency
+        const numericValue = parseFloat(conferenceValue.replace(',', '.').replace(/[^\d.-]/g, ''));
+        const formattedValue = new Intl.NumberFormat('pt-BR', {
+          style: 'currency',
+          currency: 'BRL',
+        }).format(isNaN(numericValue) ? 0 : numericValue);
+        
+        // Save to not found history with formatted value
+        const notFoundEntry = {
+          value: formattedValue,
+          timestamp: new Date(),
+          status: 'not_found' as const
+        };
+        setNotFoundHistory(prev => [notFoundEntry, ...prev]);
+        
+        // Show error message
         setSearchError('Valor não encontrado nos dados carregados.');
+        
+        // Show success toast for saving to history
+        setSearchSuccess('Valor salvo no histórico de não encontrados.');
+        setTimeout(() => setSearchSuccess(null), 3000);
+        
+        // Clear input and focus
+        setConferenceValue('');
+        setTimeout(() => {
+          const input = document.querySelector('input[placeholder*="Digite o valor"]') as HTMLInputElement;
+          if (input) {
+            input.focus();
+            input.select();
+          }
+        }, 100);
+        
         setIsSearching(false);
         return;
       }
@@ -421,6 +496,7 @@ export const Dashboard: React.FC = () => {
                   </div>
                 )}
                 <button
+                  onClick={handleRestartCurrentDay}
                   className="w-full px-3 py-2 text-sm font-medium text-gray-300 bg-gray-700 border border-gray-600 rounded-md hover:bg-gray-600 transition-colors"
                 >
                   Reiniciar dia atual
@@ -430,18 +506,62 @@ export const Dashboard: React.FC = () => {
                   className="w-full px-3 py-2 text-sm font-medium text-gray-300 bg-gray-700 border border-gray-600 rounded-md hover:bg-gray-600 transition-colors flex items-center justify-between"
                 >
                   <span>Histórico de valores não encontrados</span>
-                  <svg
-                    className={`w-4 h-4 transform transition-transform ${showHistory ? 'rotate-180' : ''}`}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
+                  <div className="flex items-center space-x-2">
+                    {notFoundHistory.length > 0 && (
+                      <span className="px-2 py-1 text-xs bg-red-600 text-white rounded-full">
+                        {notFoundHistory.length}
+                      </span>
+                    )}
+                    <svg
+                      className={`w-4 h-4 transform transition-transform ${showHistory ? 'rotate-180' : ''}`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
                 </button>
                 {showHistory && (
-                  <div className="mt-2 p-2 bg-gray-900 rounded-md border border-gray-700">
-                    <p className="text-xs text-gray-400">Nenhum valor não encontrado</p>
+                  <div className="mt-2 p-2 bg-gray-900 rounded-md border border-gray-700 max-h-40 overflow-y-auto">
+                    {notFoundHistory.length === 0 ? (
+                      <p className="text-xs text-gray-400">Nenhum valor não encontrado</p>
+                    ) : (
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-xs font-medium text-gray-300">
+                            {notFoundHistory.length} valor(es) não encontrado(s)
+                          </span>
+                          <button
+                            onClick={() => setNotFoundHistory([])}
+                            className="text-xs text-red-400 hover:text-red-300 transition-colors"
+                            title="Limpar histórico"
+                          >
+                            Limpar
+                          </button>
+                        </div>
+                        {notFoundHistory.map((entry, index) => (
+                          <div key={index} className="bg-gray-800 rounded p-2 border border-gray-600">
+                            <div className="flex justify-between items-start">
+                              <span className="text-xs text-gray-200 font-mono">
+                                {entry.value}
+                              </span>
+                              <span className="text-xs text-red-400 bg-red-900/30 px-1 rounded">
+                                Não encontrado
+                              </span>
+                            </div>
+                            <div className="mt-1 text-xs text-gray-400">
+                              {new Intl.DateTimeFormat('pt-BR', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              }).format(entry.timestamp)}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -534,7 +654,7 @@ export const Dashboard: React.FC = () => {
                       </div>
                     </div>
                   )}
-                  <DataTable data={parseResult.data} stats={parseResult.stats} />
+                  <DataTable data={parseResult.data} stats={parseResult.stats} transferredIds={transferredIds} />
                 </div>
               ) : (
                 <div className="bg-gray-800 rounded-lg shadow-2xl border border-gray-700 min-h-full p-8">
@@ -663,6 +783,43 @@ export const Dashboard: React.FC = () => {
         onSelect={handleModalSelection}
         onClose={handleModalClose}
       />
+
+      {/* Restart Confirmation Modal */}
+      {showRestartModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-gray-800 rounded-lg shadow-2xl border border-gray-700 p-6 max-w-md w-full mx-4">
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <svg className="h-6 w-6 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div className="ml-3 flex-1">
+                <h3 className="text-lg font-medium text-gray-100 mb-2">
+                  Confirmar Reinício
+                </h3>
+                <p className="text-sm text-gray-300 mb-6">
+                  Tem certeza que deseja reiniciar o dia atual? Todos os dados transferidos e históricos serão apagados.
+                </p>
+                <div className="flex space-x-3">
+                  <button
+                    onClick={handleConfirmRestart}
+                    className="flex-1 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-red-500 transition-colors"
+                  >
+                    Confirmar
+                  </button>
+                  <button
+                    onClick={handleCancelRestart}
+                    className="flex-1 px-4 py-2 text-sm font-medium text-gray-300 bg-gray-700 border border-gray-600 rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-gray-500 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

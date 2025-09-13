@@ -7,7 +7,14 @@
       "Bash(pip install:*)",
       "Bash(npx xlsx:*)",
       "Bash(git init:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(winget install:*)",
+      "Bash(gh:*)",
+      "Bash(git clone:*)",
+      "Read(//c/Users/Adrielsb/Desktop/**)",
+      "Bash(cp:*)",
+      "Bash(git config:*)",
+      "Bash(git push:*)"
     ],
     "deny": [],
     "ask": []

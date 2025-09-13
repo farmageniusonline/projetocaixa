@@ -36,8 +36,8 @@ export const DataTable: React.FC<DataTableProps> = ({ data, stats, transferredId
 
     // Remove transferred items
     if (transferredIds && transferredIds.size > 0) {
-      filtered = filtered.filter((_, index) => {
-        const itemId = `row-${index}-${_.date}-${_.value}`;
+      filtered = filtered.filter((row, index) => {
+        const itemId = `row-${index}-${row.date}-${row.value}`;
         return !transferredIds.has(itemId);
       });
     }

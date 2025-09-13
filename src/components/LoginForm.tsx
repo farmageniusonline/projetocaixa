@@ -40,7 +40,7 @@ export const LoginForm: React.FC = () => {
             <img 
               src={ManipulariumLogo} 
               alt="Manipularium Logo" 
-              className="h-16 w-auto mx-auto drop-shadow-lg"
+              className="h-24 w-24 mx-auto drop-shadow-lg"
               style={{ backgroundColor: 'transparent' }}
             />
           </div>
