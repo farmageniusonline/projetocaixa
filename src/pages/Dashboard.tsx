@@ -48,6 +48,10 @@ export const Dashboard: React.FC = () => {
   const [searchSuccess, setSearchSuccess] = useState<string | null>(null);
   const [showRestartModal, setShowRestartModal] = useState(false);
 
+  // Historical data filtering states
+  const [filteredConferredItems, setFilteredConferredItems] = useState<Array<ValueMatch & { conferredAt: Date; conferredId: string }>>([]);
+  const [isShowingFiltered, setIsShowingFiltered] = useState(false);
+
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     console.log('File selected:', file);
@@ -107,8 +111,67 @@ export const Dashboard: React.FC = () => {
   };
 
   const handleDateFilter = () => {
-    console.log('Filtrando por data:', dashboardFilters.selectedDate);
-    // Implementar lógica de filtro
+    if (!dashboardFilters.selectedDate) {
+      setSearchError('Selecione uma data para carregar o histórico.');
+      return;
+    }
+
+    console.log('Carregando histórico para data:', dashboardFilters.selectedDate);
+
+    try {
+      const selectedDate = new Date(dashboardFilters.selectedDate);
+      const dateString = selectedDate.toLocaleDateString('pt-BR');
+
+      // Filter conferred items by selected date
+      const conferredForDate = conferredItems.filter(item => {
+        const itemDate = new Date(item.conferredAt);
+        return itemDate.toDateString() === selectedDate.toDateString();
+      });
+
+      // Filter not found history by selected date
+      const notFoundForDate = notFoundHistory.filter(item => {
+        const itemDate = new Date(item.timestamp);
+        return itemDate.toDateString() === selectedDate.toDateString();
+      });
+
+      // Calculate totals
+      const totalConferred = conferredForDate.length;
+      const totalNotFound = notFoundForDate.length;
+      const totalValue = conferredForDate.reduce((sum, item) => sum + item.value, 0);
+
+      // Show summary message and update filtered data
+      if (totalConferred === 0 && totalNotFound === 0) {
+        setSearchError(`Nenhum registro encontrado para ${dateString}.`);
+        setFilteredConferredItems([]);
+        setIsShowingFiltered(false);
+      } else {
+        const summary = [
+          `Histórico de ${dateString}:`,
+          `• ${totalConferred} conferências realizadas`,
+          `• ${totalNotFound} valores não encontrados`,
+          totalValue > 0 ? `• Valor total: ${new Intl.NumberFormat('pt-BR', {
+            style: 'currency',
+            currency: 'BRL',
+          }).format(totalValue)}` : ''
+        ].filter(Boolean).join('\n');
+
+        setSearchSuccess(summary);
+        setTimeout(() => setSearchSuccess(null), 5000);
+
+        // Set filtered data for display in Conferência de Caixa tab
+        setFilteredConferredItems(conferredForDate);
+        setIsShowingFiltered(true);
+
+        // Automatically switch to cash tab if there are results
+        if (totalConferred > 0) {
+          setActiveTab('cash');
+        }
+      }
+
+    } catch (error) {
+      console.error('Erro ao filtrar por data:', error);
+      setSearchError('Erro ao carregar histórico. Verifique a data selecionada.');
+    }
   };
 
   const handleRestartCurrentDay = () => {
@@ -594,26 +657,109 @@ export const Dashboard: React.FC = () => {
               </div>
             </div>
 
-            {/* Step 4: Filter by Date */}
+            {/* Step 4: Filter by Date - Historical Data */}
             <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
               <h3 className="text-sm font-semibold text-gray-100 mb-3 flex items-center">
                 <span className="bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center mr-2 text-xs">4</span>
-                Filtrar por Data
+                Histórico por Data
               </h3>
-              <div className="space-y-2">
-                <input
-                  type="text"
-                  placeholder="dd/mm/aaaa"
-                  value={dashboardFilters.selectedDate}
-                  onChange={(e) => setDashboardFilters(prev => ({ ...prev, selectedDate: e.target.value }))}
-                  className="w-full px-3 py-2 text-sm text-gray-100 bg-gray-700 border border-gray-600 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                />
-                <button
-                  onClick={handleDateFilter}
-                  className="w-full px-3 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 transition-colors"
-                >
-                  Localizar Dia
-                </button>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Selecionar data específica</label>
+                  <input
+                    type="date"
+                    value={dashboardFilters.selectedDate}
+                    onChange={(e) => setDashboardFilters(prev => ({ ...prev, selectedDate: e.target.value }))}
+                    className="w-full px-3 py-2 text-sm text-gray-100 bg-gray-700 border border-gray-600 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
+
+                <div className="flex space-x-2">
+                  <button
+                    onClick={handleDateFilter}
+                    className="flex-1 px-3 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 transition-colors"
+                  >
+                    Carregar Dia
+                  </button>
+                  <button
+                    onClick={() => {
+                      const today = new Date().toISOString().split('T')[0];
+                      setDashboardFilters(prev => ({ ...prev, selectedDate: today }));
+                      handleDateFilter();
+                    }}
+                    className="px-3 py-2 text-sm font-medium text-gray-300 bg-gray-700 border border-gray-600 rounded-md hover:bg-gray-600 transition-colors"
+                    title="Carregar dia atual"
+                  >
+                    Hoje
+                  </button>
+                </div>
+
+                {/* Date Display */}
+                {dashboardFilters.selectedDate && (
+                  <div className="bg-gray-900 rounded p-2 border border-gray-600">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-400">Data selecionada:</span>
+                      <span className="text-xs text-indigo-400 font-medium">
+                        {new Date(dashboardFilters.selectedDate).toLocaleDateString('pt-BR', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric'
+                        })}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Historical Stats */}
+                <div className="bg-gray-900 rounded p-3 border border-gray-600">
+                  <h4 className="text-xs font-medium text-gray-400 mb-2 flex items-center">
+                    <svg className="w-4 h-4 text-gray-500 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                    Resumo Histórico
+                  </h4>
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-gray-400">Conferências hoje:</span>
+                      <span className="text-green-400 font-medium">
+                        {conferredItems.filter(item =>
+                          new Date(item.conferredAt).toDateString() === new Date().toDateString()
+                        ).length}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-gray-400">Não encontrados hoje:</span>
+                      <span className="text-red-400 font-medium">
+                        {notFoundHistory.filter(item =>
+                          new Date(item.timestamp).toDateString() === new Date().toDateString()
+                        ).length}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-gray-400">Total geral:</span>
+                      <span className="text-indigo-400 font-medium">
+                        {conferredItems.length + notFoundHistory.length}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Clear Filter Button */}
+                {isShowingFiltered && (
+                  <div className="mt-3 pt-3 border-t border-gray-700">
+                    <button
+                      onClick={() => {
+                        setIsShowingFiltered(false);
+                        setFilteredConferredItems([]);
+                        setSearchSuccess('Filtro removido. Mostrando todos os dados.');
+                        setTimeout(() => setSearchSuccess(null), 3000);
+                      }}
+                      className="w-full px-3 py-2 text-sm font-medium text-orange-300 bg-orange-900/20 border border-orange-600 rounded-md hover:bg-orange-800/30 transition-colors"
+                    >
+                      Limpar Filtro de Data
+                    </button>
+                  </div>
+                )}
               </div>
                 </div>
               </div>
@@ -792,8 +938,31 @@ export const Dashboard: React.FC = () => {
             {/* Right Block - Transferred Records Table */}
             <main className="flex-1 bg-gray-950 p-6 overflow-hidden">
               <div className="bg-gray-800 rounded-lg shadow-2xl border border-gray-700 h-full">
-                <CashConferenceTable 
-                  conferredItems={conferredItems} 
+                {isShowingFiltered && (
+                  <div className="bg-indigo-900/20 border-b border-indigo-700 p-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center">
+                        <svg className="w-4 h-4 text-indigo-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                        </svg>
+                        <span className="text-sm font-medium text-indigo-400">
+                          Filtrado por: {dashboardFilters.selectedDate &&
+                            new Date(dashboardFilters.selectedDate).toLocaleDateString('pt-BR', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric'
+                            })
+                          }
+                        </span>
+                      </div>
+                      <span className="text-xs text-indigo-300">
+                        {filteredConferredItems.length} registro(s)
+                      </span>
+                    </div>
+                  </div>
+                )}
+                <CashConferenceTable
+                  conferredItems={isShowingFiltered ? filteredConferredItems : conferredItems}
                   onRemoveItem={handleRemoveConferredItem}
                 />
               </div>

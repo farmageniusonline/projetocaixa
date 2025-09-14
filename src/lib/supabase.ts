@@ -1,16 +1,15 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321'
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'mock-key-for-development'
 
-if (!supabaseUrl || !supabaseKey) {
-  throw new Error('Supabase URL and Anon Key are required')
-}
+// Create a mock client for development when Supabase is not configured
+const isSupabaseConfigured = supabaseUrl !== 'http://localhost:54321' && supabaseKey !== 'mock-key-for-development'
 
 export const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: {
-    autoRefreshToken: true,
-    persistSession: true,
+    autoRefreshToken: isSupabaseConfigured,
+    persistSession: isSupabaseConfigured,
     detectSessionInUrl: false
   }
 })

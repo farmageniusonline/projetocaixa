@@ -17,12 +17,22 @@ export function usePersistentState<T>(
 ) {
   const [state, setState] = useState<T>(() => {
     try {
+      if (typeof window === 'undefined') return defaultValue;
       const saved = localStorage.getItem(key);
-      if (saved) {
-        return options?.deserialize ? options.deserialize(saved) : JSON.parse(saved);
+      if (saved && saved !== 'undefined' && saved !== 'null') {
+        const result = options?.deserialize ? options.deserialize(saved) : JSON.parse(saved);
+        // Validate that the result is not undefined or null unless that's the default
+        if (result !== undefined && result !== null) {
+          return result;
+        }
       }
       return defaultValue;
-    } catch {
+    } catch (error) {
+      console.warn(`Failed to load ${key} from localStorage:`, error);
+      // Clear potentially corrupted data
+      try {
+        localStorage.removeItem(key);
+      } catch {}
       return defaultValue;
     }
   });

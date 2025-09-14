@@ -7,4 +7,11 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['lucide-react'],
   },
+  define: {
+    global: 'globalThis',
+    'process.env': {},
+  },
+  server: {
+    port: 5175,
+  },
 })

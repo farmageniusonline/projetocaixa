@@ -12,12 +12,18 @@
     "db:start": "docker compose up -d",
     "db:stop": "docker compose down",
     "db:logs": "docker compose logs -f postgres",
-    "db:shell": "docker exec -it projetocaixa-postgres-1 psql -U postgres -d projetocaixa"
+    "db:shell": "docker exec -it projetocaixa-postgres-1 psql -U postgres -d projetocaixa",
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "test:debug": "playwright test --debug",
+    "test:report": "playwright show-report"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.1",
     "@supabase/supabase-js": "^2.57.4",
     "dotenv": "^17.2.2",
+    "jspdf": "^3.0.2",
     "lucide-react": "^0.344.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -28,6 +34,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",
+    "@playwright/test": "^1.55.0",
     "@types/node": "^24.3.3",
     "@types/react": "^18.3.5",
     "@types/react-dom": "^18.3.0",

@@ -25,7 +25,13 @@
       "Bash(curl:*)",
       "Bash(docker:*)",
       "Bash(npx vite:*)",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "Bash(npx playwright:*)",
+      "Bash(sudo apt-get:*)",
+      "Bash(sudo apt-get install:*)",
+      "Bash(npm run test:*)",
+      "WebFetch(domain:localhost)",
+      "mcp__ide__getDiagnostics"
     ],
     "deny": [],
     "ask": []

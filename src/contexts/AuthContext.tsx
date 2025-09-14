@@ -12,9 +12,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(() => {
     // Try to restore user from localStorage on initialization
     try {
+      if (typeof window === 'undefined') return null;
       const savedUser = localStorage.getItem('auth_user');
-      return savedUser ? JSON.parse(savedUser) : null;
-    } catch {
+      if (savedUser) {
+        const parsed = JSON.parse(savedUser);
+        // Validate the parsed user object
+        if (parsed && typeof parsed === 'object' && parsed.username) {
+          return parsed;
+        }
+      }
+      return null;
+    } catch (error) {
+      console.warn('Failed to parse saved user from localStorage:', error);
+      // Clear corrupted data
+      try {
+        localStorage.removeItem('auth_user');
+      } catch {}
       return null;
     }
   });
@@ -131,68 +144,87 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // and validate the session in background
       setIsLoading(false);
 
-      // Background session validation (optional)
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        if (!session?.user && !user.username.includes('admin')) {
-          // Session is invalid and it's not a fallback user, logout
-          logout();
-        }
-      });
+      // Background session validation (optional) - only if Supabase is configured
+      try {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          if (!session?.user && !user.username.includes('admin')) {
+            // Session is invalid and it's not a fallback user, logout
+            logout();
+          }
+        }).catch(error => {
+          console.warn('Supabase session check failed:', error);
+          // Continue with local auth if Supabase fails
+        });
+      } catch (error) {
+        console.warn('Supabase not available:', error);
+      }
       return;
     }
 
     // Get initial session only if no user in localStorage
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        // Get user profile
-        supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single()
-          .then(({ data: profile }) => {
-            const userData: User = {
-              username: profile?.username || session.user.email?.split('@')[0] || 'user',
-              id: session.user.id,
-              email: session.user.email,
-              profile: profile
-            };
-            setUser(userData);
-            // Persist user to localStorage
-            localStorage.setItem('auth_user', JSON.stringify(userData));
-          });
-      }
+    try {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session?.user) {
+          // Get user profile
+          supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single()
+            .then(({ data: profile }) => {
+              const userData: User = {
+                username: profile?.username || session.user.email?.split('@')[0] || 'user',
+                id: session.user.id,
+                email: session.user.email,
+                profile: profile
+              };
+              setUser(userData);
+              // Persist user to localStorage
+              localStorage.setItem('auth_user', JSON.stringify(userData));
+            });
+        }
+        setIsLoading(false);
+      }).catch(error => {
+        console.warn('Supabase session initialization failed:', error);
+        setIsLoading(false);
+      });
+    } catch (error) {
+      console.warn('Supabase not available:', error);
       setIsLoading(false);
-    });
+    }
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session?.user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
+    // Listen for auth changes - with error handling
+    try {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+        if (event === 'SIGNED_IN' && session?.user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
 
-        const userData: User = {
-          username: profile?.username || session.user.email?.split('@')[0] || 'user',
-          id: session.user.id,
-          email: session.user.email,
-          profile: profile
-        };
-        setUser(userData);
-        // Persist user to localStorage
-        localStorage.setItem('auth_user', JSON.stringify(userData));
-      } else if (event === 'SIGNED_OUT') {
-        setUser(null);
-        // Remove user from localStorage
-        localStorage.removeItem('auth_user');
-        localStorage.removeItem('dashboard_filters'); // Clear filters on logout
-      }
-      setIsLoading(false);
-    });
+          const userData: User = {
+            username: profile?.username || session.user.email?.split('@')[0] || 'user',
+            id: session.user.id,
+            email: session.user.email,
+            profile: profile
+          };
+          setUser(userData);
+          // Persist user to localStorage
+          localStorage.setItem('auth_user', JSON.stringify(userData));
+        } else if (event === 'SIGNED_OUT') {
+          setUser(null);
+          // Remove user from localStorage
+          localStorage.removeItem('auth_user');
+          localStorage.removeItem('dashboard_filters'); // Clear filters on logout
+        }
+        setIsLoading(false);
+      });
 
-    return () => subscription.unsubscribe();
+      return () => subscription.unsubscribe();
+    } catch (error) {
+      console.warn('Supabase auth listener failed:', error);
+    }
   }, []);
 
   const value: AuthContextType = {

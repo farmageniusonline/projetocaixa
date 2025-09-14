@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { LoginForm } from './components/LoginForm'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { Dashboard } from './pages/Dashboard'
+import { ErrorBoundary } from './components/ErrorBoundary'
 
 function AppRoutes() {
   const { user, isLoading } = useAuth();
@@ -40,9 +41,11 @@ function AppRoutes() {
 
 function App() {
   return (
-    <AuthProvider>
-      <AppRoutes />
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
+    </ErrorBoundary>
   )
 }
 
