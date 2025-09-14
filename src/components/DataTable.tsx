@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { ParsedRow } from '../utils/excelParser';
+import { usePersistentState } from '../hooks/usePersistentState';
 
 interface DataTableProps {
   data: ParsedRow[];
@@ -17,11 +18,12 @@ type SortField = 'date' | 'value' | 'paymentType' | 'cpf';
 type SortDirection = 'asc' | 'desc';
 
 export const DataTable: React.FC<DataTableProps> = ({ data, stats, transferredIds }) => {
-  const [sortField, setSortField] = useState<SortField>('date');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
-  const [filterPaymentType, setFilterPaymentType] = useState<string>('all');
-  const [filterCPF, setFilterCPF] = useState<string>('');
-  const [currentPage, setCurrentPage] = useState(1);
+  // Use persistent state for table settings
+  const [sortField, setSortField] = usePersistentState<SortField>('datatable_sort_field', 'date');
+  const [sortDirection, setSortDirection] = usePersistentState<SortDirection>('datatable_sort_direction', 'desc');
+  const [filterPaymentType, setFilterPaymentType] = usePersistentState('datatable_filter_payment_type', 'all');
+  const [filterCPF, setFilterCPF] = usePersistentState('datatable_filter_cpf', '');
+  const [currentPage, setCurrentPage] = usePersistentState('datatable_current_page', 1);
   const itemsPerPage = 20;
 
   // Get unique payment types for filter

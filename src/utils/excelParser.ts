@@ -48,9 +48,15 @@ const COLUMN_MAPPINGS = {
 };
 
 export async function parseExcelFile(file: File): Promise<ParseResult> {
+  console.log('parseExcelFile: Starting to parse file:', file.name);
   try {
+    console.log('parseExcelFile: Reading file as arrayBuffer...');
     const data = await file.arrayBuffer();
+    console.log('parseExcelFile: ArrayBuffer size:', data.byteLength);
+
+    console.log('parseExcelFile: Reading workbook with XLSX...');
     const workbook = XLSX.read(data, { type: 'array' });
+    console.log('parseExcelFile: Workbook sheet names:', workbook.SheetNames);
     
     if (workbook.SheetNames.length === 0) {
       return {

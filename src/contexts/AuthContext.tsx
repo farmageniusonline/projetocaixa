@@ -9,7 +9,15 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(() => {
+    // Try to restore user from localStorage on initialization
+    try {
+      const savedUser = localStorage.getItem('auth_user');
+      return savedUser ? JSON.parse(savedUser) : null;
+    } catch {
+      return null;
+    }
+  });
   const [isLoading, setIsLoading] = useState(true);
 
   const login = async (username: string, password: string): Promise<boolean> => {
@@ -29,6 +37,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         if (username === 'admin' && password === 'manipularium') {
           const userData: User = { username: 'admin' };
           setUser(userData);
+          // Persist user to localStorage
+          localStorage.setItem('auth_user', JSON.stringify(userData));
           return true;
         }
 
@@ -77,6 +87,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         };
 
         setUser(userData);
+        // Persist user to localStorage
+        localStorage.setItem('auth_user', JSON.stringify(userData));
         return true;
       }
 
@@ -88,6 +100,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (username === 'admin' && password === 'manipularium') {
         const userData: User = { username: 'admin' };
         setUser(userData);
+        // Persist user to localStorage
+        localStorage.setItem('auth_user', JSON.stringify(userData));
         return true;
       }
 
@@ -104,11 +118,30 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.error('Logout error:', error);
     }
     setUser(null);
+    // Remove user from localStorage
+    localStorage.removeItem('auth_user');
+    localStorage.removeItem('dashboard_filters'); // Clear filters on logout
   };
 
   // Check for existing session on mount
   useEffect(() => {
-    // Get initial session
+    // If user is already loaded from localStorage, just check if session is still valid
+    if (user) {
+      // Quick validation - if we have a user from localStorage, we can show the dashboard immediately
+      // and validate the session in background
+      setIsLoading(false);
+
+      // Background session validation (optional)
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (!session?.user && !user.username.includes('admin')) {
+          // Session is invalid and it's not a fallback user, logout
+          logout();
+        }
+      });
+      return;
+    }
+
+    // Get initial session only if no user in localStorage
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         // Get user profile
@@ -125,6 +158,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               profile: profile
             };
             setUser(userData);
+            // Persist user to localStorage
+            localStorage.setItem('auth_user', JSON.stringify(userData));
           });
       }
       setIsLoading(false);
@@ -146,8 +181,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           profile: profile
         };
         setUser(userData);
+        // Persist user to localStorage
+        localStorage.setItem('auth_user', JSON.stringify(userData));
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
+        // Remove user from localStorage
+        localStorage.removeItem('auth_user');
+        localStorage.removeItem('dashboard_filters'); // Clear filters on logout
       }
       setIsLoading(false);
     });

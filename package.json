@@ -5,9 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:local": "cp .env.development .env.local && vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "db:start": "docker compose up -d",
+    "db:stop": "docker compose down",
+    "db:logs": "docker compose logs -f postgres",
+    "db:shell": "docker exec -it projetocaixa-postgres-1 psql -U postgres -d projetocaixa"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.1",

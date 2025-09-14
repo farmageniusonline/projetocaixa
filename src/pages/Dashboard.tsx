@@ -6,52 +6,74 @@ import { DataTable } from '../components/DataTable';
 import { ValueSelectionModal } from '../components/ValueSelectionModal';
 import { CashConferenceTable } from '../components/CashConferenceTable';
 import { searchValueMatches, validateValueInput, ValueMatch } from '../utils/valueNormalizer';
+import { useDashboardFilters, usePersistentState } from '../hooks/usePersistentState';
 
 export const Dashboard: React.FC = () => {
   const { user, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState<'banking' | 'cash'>('banking');
+
+  // Persistent state hooks
+  const [dashboardFilters, setDashboardFilters] = useDashboardFilters();
+  const [activeTab, setActiveTab] = usePersistentState<'banking' | 'cash'>('dashboard_active_tab', 'banking');
+  const [showHistory, setShowHistory] = usePersistentState('dashboard_show_history', false);
+
+  // Local state (non-persistent)
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [dateMode, setDateMode] = useState<'automatic' | 'manual'>('automatic');
-  const [selectedDate, setSelectedDate] = useState<string>('');
-  const [filterDate, setFilterDate] = useState<string>('');
-  const [conferenceValue, setConferenceValue] = useState<string>('');
-  const [showHistory, setShowHistory] = useState(false);
-  const [parseResult, setParseResult] = useState<ParseResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Persistent state for parsed data
+  const [parseResult, setParseResult] = usePersistentState<ParseResult | null>('dashboard_parse_result', null);
   
-  // Conference states
-  const [conferredItems, setConferredItems] = useState<Array<ValueMatch & { conferredAt: Date; conferredId: string }>>([]);
+  // Conference states - persistent
+  const [conferredItems, setConferredItems] = usePersistentState<Array<ValueMatch & { conferredAt: Date; conferredId: string }>>('dashboard_conferred_items', []);
+  const [transferredIds, setTransferredIds] = usePersistentState<Set<string>>('dashboard_transferred_ids', new Set(), {
+    serialize: (value) => JSON.stringify(Array.from(value)),
+    deserialize: (value) => new Set(JSON.parse(value))
+  });
+  const [notFoundHistory, setNotFoundHistory] = usePersistentState<Array<{
+    value: string;
+    timestamp: Date;
+    status: 'not_found';
+  }>>('dashboard_not_found_history', [], {
+    serialize: (value) => JSON.stringify(value.map(item => ({ ...item, timestamp: item.timestamp.toISOString() }))),
+    deserialize: (value) => JSON.parse(value).map((item: any) => ({ ...item, timestamp: new Date(item.timestamp) }))
+  });
+
+  // Conference states - non-persistent
   const [isSearching, setIsSearching] = useState(false);
   const [searchMatches, setSearchMatches] = useState<ValueMatch[]>([]);
   const [showSelectionModal, setShowSelectionModal] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [searchSuccess, setSearchSuccess] = useState<string | null>(null);
-  const [transferredIds, setTransferredIds] = useState<Set<string>>(new Set());
-  const [notFoundHistory, setNotFoundHistory] = useState<Array<{
-    value: string;
-    timestamp: Date;
-    status: 'not_found';
-  }>>([]);
   const [showRestartModal, setShowRestartModal] = useState(false);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
+    console.log('File selected:', file);
     if (file) {
+      console.log('File details:', { name: file.name, size: file.size, type: file.type });
       setSelectedFile(file);
       setError(null);
     }
   };
 
   const handleLoadFile = async () => {
-    if (!selectedFile) return;
+    console.log('handleLoadFile called, selectedFile:', selectedFile);
+    if (!selectedFile) {
+      console.log('No file selected');
+      return;
+    }
 
+    console.log('Starting file processing...');
     setIsLoading(true);
     setError(null);
 
     try {
       const startTime = Date.now();
+      console.log('Calling parseExcelFile...');
       const result = await parseExcelFile(selectedFile);
+      console.log('parseExcelFile result:', result);
       const processingTime = Date.now() - startTime;
 
       if (result.success) {
@@ -85,7 +107,7 @@ export const Dashboard: React.FC = () => {
   };
 
   const handleDateFilter = () => {
-    console.log('Filtrando por data:', filterDate);
+    console.log('Filtrando por data:', dashboardFilters.selectedDate);
     // Implementar lógica de filtro
   };
 
@@ -133,7 +155,7 @@ export const Dashboard: React.FC = () => {
       return;
     }
 
-    const validation = validateValueInput(conferenceValue);
+    const validation = validateValueInput(dashboardFilters.conferenceValue);
     if (!validation.isValid) {
       setSearchError(validation.error || 'Valor inválido');
       return;
@@ -144,11 +166,11 @@ export const Dashboard: React.FC = () => {
     setSearchSuccess(null);
 
     try {
-      const searchResult = searchValueMatches(conferenceValue, parseResult.data);
+      const searchResult = searchValueMatches(dashboardFilters.conferenceValue, parseResult.data);
       
       if (!searchResult.hasMatches) {
         // Parse and format value as Brazilian currency
-        const numericValue = parseFloat(conferenceValue.replace(',', '.').replace(/[^\d.-]/g, ''));
+        const numericValue = parseFloat(dashboardFilters.conferenceValue.replace(',', '.').replace(/[^\d.-]/g, ''));
         const formattedValue = new Intl.NumberFormat('pt-BR', {
           style: 'currency',
           currency: 'BRL',
@@ -207,7 +229,7 @@ export const Dashboard: React.FC = () => {
     } finally {
       setIsSearching(false);
     }
-  }, [conferenceValue, parseResult, conferredItems]);
+  }, [dashboardFilters.conferenceValue, parseResult, conferredItems]);
 
   const transferToConference = useCallback(async (match: ValueMatch) => {
     const conferredId = `conf-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -271,6 +293,10 @@ export const Dashboard: React.FC = () => {
     setActiveTab(tab);
     setSearchError(null);
     setSearchSuccess(null);
+  };
+
+  const setConferenceValue = (value: string) => {
+    setDashboardFilters(prev => ({ ...prev, conferenceValue: value }));
   };
 
   const handleConferenceValueChange = (value: string) => {
@@ -380,16 +406,17 @@ export const Dashboard: React.FC = () => {
                 <label
                   htmlFor="fileInput"
                   className="block w-full px-3 py-2 text-sm text-gray-300 bg-gray-700 border border-gray-600 rounded-md cursor-pointer hover:bg-gray-600 transition-colors text-center"
+                  onClick={() => console.log('Label clicked')}
                 >
-                  {selectedFile ? selectedFile.name : 'Escolher arquivo'}
+                  {selectedFile ? `✅ ${selectedFile.name}` : '📁 Escolher arquivo'}
                 </label>
                 <div className="flex space-x-2">
                   <button
                     onClick={handleLoadFile}
-                    disabled={!selectedFile}
+                    disabled={!selectedFile || isLoading}
                     className="flex-1 px-3 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
-                    Carregar
+                    {isLoading ? 'Processando...' : 'Carregar'}
                   </button>
                   <button
                     onClick={handleClearFile}
@@ -435,8 +462,8 @@ export const Dashboard: React.FC = () => {
                 {dateMode === 'manual' && (
                   <input
                     type="date"
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
+                    value={dashboardFilters.selectedDate}
+                    onChange={(e) => setDashboardFilters(prev => ({ ...prev, selectedDate: e.target.value }))}
                     className="w-full px-3 py-2 text-sm text-gray-100 bg-gray-700 border border-gray-600 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   />
                 )}
@@ -453,7 +480,7 @@ export const Dashboard: React.FC = () => {
                 <input
                   type="text"
                   placeholder="Digite o valor (ex: 123,45)"
-                  value={conferenceValue}
+                  value={dashboardFilters.conferenceValue}
                   onChange={(e) => handleConferenceValueChange(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && !isSearching && handleConferenceCheck()}
                   disabled={!parseResult || isSearching}
@@ -461,7 +488,7 @@ export const Dashboard: React.FC = () => {
                 />
                 <button
                   onClick={handleConferenceCheck}
-                  disabled={!parseResult || isSearching || !conferenceValue.trim()}
+                  disabled={!parseResult || isSearching || !dashboardFilters.conferenceValue.trim()}
                   className="w-full px-3 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
                 >
                   {isSearching ? (
@@ -577,8 +604,8 @@ export const Dashboard: React.FC = () => {
                 <input
                   type="text"
                   placeholder="dd/mm/aaaa"
-                  value={filterDate}
-                  onChange={(e) => setFilterDate(e.target.value)}
+                  value={dashboardFilters.selectedDate}
+                  onChange={(e) => setDashboardFilters(prev => ({ ...prev, selectedDate: e.target.value }))}
                   className="w-full px-3 py-2 text-sm text-gray-100 bg-gray-700 border border-gray-600 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                 />
                 <button
@@ -703,8 +730,8 @@ export const Dashboard: React.FC = () => {
                       <label className="block text-xs text-gray-400 mb-1">Data específica</label>
                       <input
                         type="date"
-                        value={filterDate}
-                        onChange={(e) => setFilterDate(e.target.value)}
+                        value={dashboardFilters.selectedDate}
+                        onChange={(e) => setDashboardFilters(prev => ({ ...prev, selectedDate: e.target.value }))}
                         className="w-full px-3 py-2 text-sm text-gray-100 bg-gray-700 border border-gray-600 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                       />
                     </div>
@@ -715,7 +742,7 @@ export const Dashboard: React.FC = () => {
                       Aplicar Filtro
                     </button>
                     <button
-                      onClick={() => setFilterDate('')}
+                      onClick={() => setDashboardFilters(prev => ({ ...prev, selectedDate: '' }))}
                       className="w-full px-3 py-2 text-sm font-medium text-gray-300 bg-gray-700 border border-gray-600 rounded-md hover:bg-gray-600 transition-colors"
                     >
                       Limpar Filtro

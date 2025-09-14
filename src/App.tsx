@@ -6,13 +6,24 @@ import { ProtectedRoute } from './components/ProtectedRoute'
 import { Dashboard } from './pages/Dashboard'
 
 function AppRoutes() {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 to-black">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500 mx-auto mb-4"></div>
+          <p className="text-gray-400">Carregando...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Routes>
-      <Route 
-        path="/" 
-        element={user ? <Navigate to="/dashboard" replace /> : <LoginForm />} 
+      <Route
+        path="/"
+        element={user ? <Navigate to="/dashboard" replace /> : <LoginForm />}
       />
       <Route
         path="/dashboard"

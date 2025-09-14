@@ -22,7 +22,10 @@
       "Bash(npx supabase login)",
       "Bash(npx supabase:*)",
       "Bash(node:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(docker:*)",
+      "Bash(npx vite:*)",
+      "Bash(chmod:*)"
     ],
     "deny": [],
     "ask": []
