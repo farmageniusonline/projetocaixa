@@ -31,7 +31,10 @@
       "Bash(sudo apt-get install:*)",
       "Bash(npm run test:*)",
       "WebFetch(domain:localhost)",
-      "mcp__ide__getDiagnostics"
+      "mcp__ide__getDiagnostics",
+      "Bash(npm run typecheck:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm test)"
     ],
     "deny": [],
     "ask": []

@@ -5,8 +5,11 @@ import { parseExcelFile, ParseResult } from '../utils/excelParser';
 import { DataTable } from '../components/DataTable';
 import { ValueSelectionModal } from '../components/ValueSelectionModal';
 import { CashConferenceTable } from '../components/CashConferenceTable';
+import { DateSelector } from '../components/DateSelector';
+import { HistoryByDate } from '../components/HistoryByDate';
 import { searchValueMatches, validateValueInput, ValueMatch } from '../utils/valueNormalizer';
 import { useDashboardFilters, usePersistentState } from '../hooks/usePersistentState';
+import { ConferenceHistoryService, ConferenceHistoryEntry } from '../services/conferenceHistory';
 
 export const Dashboard: React.FC = () => {
   const { user, logout } = useAuth();
@@ -18,9 +21,11 @@ export const Dashboard: React.FC = () => {
 
   // Local state (non-persistent)
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [dateMode, setDateMode] = useState<'automatic' | 'manual'>('automatic');
+  const [operationDate, setOperationDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [uploadMode, setUploadMode] = useState<'automatic' | 'manual'>('automatic');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadedHistory, setLoadedHistory] = useState<ConferenceHistoryEntry[]>([]);
 
   // Persistent state for parsed data
   const [parseResult, setParseResult] = usePersistentState<ParseResult | null>('dashboard_parse_result', null);
@@ -86,6 +91,20 @@ export const Dashboard: React.FC = () => {
         console.log(`Linhas processadas: ${result.stats.totalRows}`);
         console.log(`Linhas válidas: ${result.stats.validRows}`);
         console.log(`Avisos: ${result.warnings.length}`);
+
+        // Save to database
+        try {
+          await ConferenceHistoryService.saveBankingUpload(
+            result.data,
+            selectedFile.name,
+            operationDate,
+            uploadMode
+          );
+          console.log('Data saved to database successfully');
+        } catch (dbError) {
+          console.error('Error saving to database:', dbError);
+          // Don't fail the entire operation if DB save fails
+        }
       } else {
         setError(result.errors.join('\n'));
         setParseResult(null);
@@ -246,7 +265,17 @@ export const Dashboard: React.FC = () => {
           status: 'not_found' as const
         };
         setNotFoundHistory(prev => [notFoundEntry, ...prev]);
-        
+
+        // Save to database
+        try {
+          await ConferenceHistoryService.saveNotFound(
+            dashboardFilters.conferenceValue,
+            operationDate
+          );
+        } catch (dbError) {
+          console.error('Error saving not found to database:', dbError);
+        }
+
         // Show error message
         setSearchError('Valor não encontrado nos dados carregados.');
         
@@ -292,7 +321,7 @@ export const Dashboard: React.FC = () => {
     } finally {
       setIsSearching(false);
     }
-  }, [dashboardFilters.conferenceValue, parseResult, conferredItems]);
+  }, [dashboardFilters.conferenceValue, parseResult, conferredItems, operationDate]);
 
   const transferToConference = useCallback(async (match: ValueMatch) => {
     const conferredId = `conf-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -304,14 +333,25 @@ export const Dashboard: React.FC = () => {
 
     // Add to conferred items
     setConferredItems(prev => [...prev, conferredItem]);
-    
+
     // Mark as transferred to remove from banking table
     setTransferredIds(prev => new Set([...prev, match.id]));
-    
+
+    // Save to database
+    try {
+      await ConferenceHistoryService.saveCashConference(
+        match,
+        operationDate,
+        'conferred'
+      );
+    } catch (dbError) {
+      console.error('Error saving conference to database:', dbError);
+    }
+
     // Clear input and show success
     setConferenceValue('');
     setSearchSuccess('Valor encontrado e transferido para Conferência de Caixa.');
-    
+
     // Focus back on the input field
     setTimeout(() => {
       const input = document.querySelector('input[placeholder*="Digite o valor"]') as HTMLInputElement;
@@ -323,7 +363,7 @@ export const Dashboard: React.FC = () => {
 
     // Clear success message after 3 seconds
     setTimeout(() => setSearchSuccess(null), 3000);
-  }, []);
+  }, [operationDate]);
 
   const handleModalSelection = useCallback((match: ValueMatch) => {
     transferToConference(match);
@@ -492,46 +532,13 @@ export const Dashboard: React.FC = () => {
             </div>
 
             {/* Step 2: Select Day */}
-            <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-              <h3 className="text-sm font-semibold text-gray-100 mb-3 flex items-center">
-                <span className="bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center mr-2 text-xs">2</span>
-                Selecionar Dia
-              </h3>
-              <div className="space-y-2">
-                <div className="flex flex-col space-y-2">
-                  <label className="flex items-center">
-                    <input
-                      type="radio"
-                      name="dateMode"
-                      value="automatic"
-                      checked={dateMode === 'automatic'}
-                      onChange={() => setDateMode('automatic')}
-                      className="mr-2 text-indigo-600 focus:ring-indigo-500"
-                    />
-                    <span className="text-sm text-gray-300">Data Automática</span>
-                  </label>
-                  <label className="flex items-center">
-                    <input
-                      type="radio"
-                      name="dateMode"
-                      value="manual"
-                      checked={dateMode === 'manual'}
-                      onChange={() => setDateMode('manual')}
-                      className="mr-2 text-indigo-600 focus:ring-indigo-500"
-                    />
-                    <span className="text-sm text-gray-300">Selecionar Manualmente</span>
-                  </label>
-                </div>
-                {dateMode === 'manual' && (
-                  <input
-                    type="date"
-                    value={dashboardFilters.selectedDate}
-                    onChange={(e) => setDashboardFilters(prev => ({ ...prev, selectedDate: e.target.value }))}
-                    className="w-full px-3 py-2 text-sm text-gray-100 bg-gray-700 border border-gray-600 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  />
-                )}
-              </div>
-            </div>
+            <DateSelector
+              selectedFile={selectedFile}
+              onDateSelected={(date, mode) => {
+                setOperationDate(date);
+                setUploadMode(mode);
+              }}
+            />
 
             {/* Step 3: Check Value */}
             <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
@@ -657,111 +664,26 @@ export const Dashboard: React.FC = () => {
               </div>
             </div>
 
-            {/* Step 4: Filter by Date - Historical Data */}
-            <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-              <h3 className="text-sm font-semibold text-gray-100 mb-3 flex items-center">
-                <span className="bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center mr-2 text-xs">4</span>
-                Histórico por Data
-              </h3>
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-xs text-gray-400 mb-1">Selecionar data específica</label>
-                  <input
-                    type="date"
-                    value={dashboardFilters.selectedDate}
-                    onChange={(e) => setDashboardFilters(prev => ({ ...prev, selectedDate: e.target.value }))}
-                    className="w-full px-3 py-2 text-sm text-gray-100 bg-gray-700 border border-gray-600 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  />
-                </div>
+            {/* Step 4: History by Date */}
+            <HistoryByDate
+              onDataLoaded={(data) => {
+                setLoadedHistory(data);
+                // Process loaded history to update UI if needed
+                const conferredFromHistory = data
+                  .filter(entry => entry.operation_type === 'cash_conference' && entry.status === 'conferred')
+                  .map(entry => ({
+                    ...entry.metadata,
+                    conferredAt: new Date(entry.conferred_at || entry.operation_timestamp || ''),
+                    conferredId: entry.id || `hist-${entry.operation_timestamp}`
+                  }));
 
-                <div className="flex space-x-2">
-                  <button
-                    onClick={handleDateFilter}
-                    className="flex-1 px-3 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 transition-colors"
-                  >
-                    Carregar Dia
-                  </button>
-                  <button
-                    onClick={() => {
-                      const today = new Date().toISOString().split('T')[0];
-                      setDashboardFilters(prev => ({ ...prev, selectedDate: today }));
-                      handleDateFilter();
-                    }}
-                    className="px-3 py-2 text-sm font-medium text-gray-300 bg-gray-700 border border-gray-600 rounded-md hover:bg-gray-600 transition-colors"
-                    title="Carregar dia atual"
-                  >
-                    Hoje
-                  </button>
-                </div>
-
-                {/* Date Display */}
-                {dashboardFilters.selectedDate && (
-                  <div className="bg-gray-900 rounded p-2 border border-gray-600">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-400">Data selecionada:</span>
-                      <span className="text-xs text-indigo-400 font-medium">
-                        {new Date(dashboardFilters.selectedDate).toLocaleDateString('pt-BR', {
-                          day: '2-digit',
-                          month: '2-digit',
-                          year: 'numeric'
-                        })}
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                {/* Historical Stats */}
-                <div className="bg-gray-900 rounded p-3 border border-gray-600">
-                  <h4 className="text-xs font-medium text-gray-400 mb-2 flex items-center">
-                    <svg className="w-4 h-4 text-gray-500 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                    </svg>
-                    Resumo Histórico
-                  </h4>
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-xs">
-                      <span className="text-gray-400">Conferências hoje:</span>
-                      <span className="text-green-400 font-medium">
-                        {conferredItems.filter(item =>
-                          new Date(item.conferredAt).toDateString() === new Date().toDateString()
-                        ).length}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-xs">
-                      <span className="text-gray-400">Não encontrados hoje:</span>
-                      <span className="text-red-400 font-medium">
-                        {notFoundHistory.filter(item =>
-                          new Date(item.timestamp).toDateString() === new Date().toDateString()
-                        ).length}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-xs">
-                      <span className="text-gray-400">Total geral:</span>
-                      <span className="text-indigo-400 font-medium">
-                        {conferredItems.length + notFoundHistory.length}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Clear Filter Button */}
-                {isShowingFiltered && (
-                  <div className="mt-3 pt-3 border-t border-gray-700">
-                    <button
-                      onClick={() => {
-                        setIsShowingFiltered(false);
-                        setFilteredConferredItems([]);
-                        setSearchSuccess('Filtro removido. Mostrando todos os dados.');
-                        setTimeout(() => setSearchSuccess(null), 3000);
-                      }}
-                      className="w-full px-3 py-2 text-sm font-medium text-orange-300 bg-orange-900/20 border border-orange-600 rounded-md hover:bg-orange-800/30 transition-colors"
-                    >
-                      Limpar Filtro de Data
-                    </button>
-                  </div>
-                )}
-              </div>
-                </div>
+                if (conferredFromHistory.length > 0) {
+                  setFilteredConferredItems(conferredFromHistory);
+                  setIsShowingFiltered(true);
+                  setActiveTab('cash');
+                }
+              }}
+            />
               </div>
             </aside>
 
