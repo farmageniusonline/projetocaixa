@@ -15,7 +15,14 @@
       "Bash(cp:*)",
       "Bash(git config:*)",
       "Bash(git push:*)",
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "Bash(git commit:*)",
+      "Bash(supabase login:*)",
+      "Bash(where supabase)",
+      "Bash(npx supabase login)",
+      "Bash(npx supabase:*)",
+      "Bash(node:*)",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": []
