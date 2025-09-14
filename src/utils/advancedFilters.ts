@@ -1,4 +1,5 @@
 import { ParsedRow } from './excelParser';
+import { formatForDisplay } from './dateFormatter';
 
 export interface DateRange {
   start: Date;
@@ -39,13 +40,22 @@ export interface FilterResult {
 }
 
 /**
- * Parse date string in DD/MM/YYYY format
+ * Parse date string in DD/MM/YYYY or DD-MM-YYYY format
  */
 function parseDate(dateStr: string): Date | null {
   try {
     if (dateStr === 'Data inválida') return null;
 
-    const [day, month, year] = dateStr.split('/').map(Number);
+    let parts: number[];
+    if (dateStr.includes('/')) {
+      parts = dateStr.split('/').map(Number);
+    } else if (dateStr.includes('-')) {
+      parts = dateStr.split('-').map(Number);
+    } else {
+      return null;
+    }
+
+    const [day, month, year] = parts;
     if (!day || !month || !year) return null;
 
     return new Date(year, month - 1, day);
@@ -158,8 +168,8 @@ function calculateStatistics(originalData: ParsedRow[], filteredData: ParsedRow[
     filteredValue,
     paymentTypeBreakdown,
     dateRangeInfo: {
-      earliestDate: new Date(earliestDate).toLocaleDateString('pt-BR'),
-      latestDate: new Date(latestDate).toLocaleDateString('pt-BR')
+      earliestDate: formatForDisplay(new Date(earliestDate)),
+      latestDate: formatForDisplay(new Date(latestDate))
     }
   };
 }

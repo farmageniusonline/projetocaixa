@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { parseExcelFile } from '../utils/excelParser';
+import { formatToDDMMYYYY, formatForDateInput, formatForDisplay, getTodayDDMMYYYY } from '../utils/dateFormatter';
 
 interface DateSelectorProps {
   selectedFile: File | null;
@@ -14,7 +15,7 @@ export const DateSelector: React.FC<DateSelectorProps> = ({
 }) => {
   const [dateMode, setDateMode] = useState<'automatic' | 'manual'>('automatic');
   const [manualDate, setManualDate] = useState<string>(
-    new Date().toISOString().split('T')[0]
+    formatForDateInput(new Date())
   );
   const [automaticDate, setAutomaticDate] = useState<string | null>(null);
   const [isDetecting, setIsDetecting] = useState(false);
@@ -54,29 +55,28 @@ export const DateSelector: React.FC<DateSelectorProps> = ({
           const mostCommonDate = Object.entries(dateCount)
             .sort(([, a], [, b]) => b - a)[0][0];
 
-          // Convert to ISO format
-          const dateObj = new Date(mostCommonDate);
-          const isoDate = dateObj.toISOString().split('T')[0];
+          // Convert to DD-MM-YYYY format
+          const formattedDate = formatToDDMMYYYY(mostCommonDate);
 
-          setAutomaticDate(isoDate);
-          onDateSelected(isoDate, 'automatic');
+          setAutomaticDate(formattedDate);
+          onDateSelected(formattedDate, 'automatic');
         } else {
           // No valid dates found, use today's date
-          const today = new Date().toISOString().split('T')[0];
+          const today = getTodayDDMMYYYY();
           setAutomaticDate(today);
           setDetectionError('Nenhuma data válida encontrada no arquivo. Usando data atual.');
           onDateSelected(today, 'automatic');
         }
       } else {
         // Failed to parse file, use today's date
-        const today = new Date().toISOString().split('T')[0];
+        const today = getTodayDDMMYYYY();
         setAutomaticDate(today);
         setDetectionError('Não foi possível detectar data do arquivo. Usando data atual.');
         onDateSelected(today, 'automatic');
       }
     } catch (error) {
       console.error('Error detecting date from file:', error);
-      const today = new Date().toISOString().split('T')[0];
+      const today = getTodayDDMMYYYY();
       setAutomaticDate(today);
       setDetectionError('Erro ao detectar data. Usando data atual.');
       onDateSelected(today, 'automatic');
@@ -92,31 +92,26 @@ export const DateSelector: React.FC<DateSelectorProps> = ({
     if (mode === 'automatic' && automaticDate) {
       onDateSelected(automaticDate, 'automatic');
     } else if (mode === 'manual') {
-      onDateSelected(manualDate, 'manual');
+      const formattedDate = formatToDDMMYYYY(manualDate);
+      onDateSelected(formattedDate, 'manual');
     }
   };
 
   const handleManualDateChange = (date: string) => {
     setManualDate(date);
     if (dateMode === 'manual') {
-      onDateSelected(date, 'manual');
+      // Convert from ISO format to DD-MM-YYYY before sending
+      const formattedDate = formatToDDMMYYYY(date);
+      onDateSelected(formattedDate, 'manual');
     }
   };
 
   const getCurrentDate = () => {
     if (dateMode === 'automatic') {
-      return automaticDate || new Date().toISOString().split('T')[0];
+      return automaticDate || getTodayDDMMYYYY();
     }
-    return manualDate;
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString + 'T00:00:00');
-    return date.toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
+    // Convert from ISO format to DD-MM-YYYY
+    return formatToDDMMYYYY(manualDate);
   };
 
   return (
@@ -146,7 +141,7 @@ export const DateSelector: React.FC<DateSelectorProps> = ({
               </span>
               {dateMode === 'automatic' && automaticDate && (
                 <span className="ml-2 text-xs text-indigo-400">
-                  ({formatDate(automaticDate)})
+                  ({formatForDisplay(automaticDate)})
                 </span>
               )}
             </div>
@@ -209,7 +204,7 @@ export const DateSelector: React.FC<DateSelectorProps> = ({
             <span className="text-xs text-gray-400">Data selecionada:</span>
             <div className="text-right">
               <span className="text-sm text-indigo-400 font-medium">
-                {formatDate(getCurrentDate())}
+                {formatForDisplay(getCurrentDate())}
               </span>
               <span className="block text-xs text-gray-500 mt-1">
                 Modo: {dateMode === 'automatic' ? 'Automático' : 'Manual'}

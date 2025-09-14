@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx';
+import { formatToDDMMYYYY } from './dateFormatter';
 
 export interface ParsedRow {
   date: string;
@@ -350,12 +351,8 @@ function parseDate(value: any): string | null {
       return null;
     }
 
-    // Format as dd/mm/yyyy
-    const day = String(date.getDate()).padStart(2, '0');
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const year = date.getFullYear();
-    
-    return `${day}/${month}/${year}`;
+    // Use the centralized formatter to ensure consistency (DD-MM-YYYY)
+    return formatToDDMMYYYY(date);
   } catch {
     return null;
   }

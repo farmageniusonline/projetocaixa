@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { ConferenceHistoryService, ConferenceHistoryEntry, DailyOperationsSummary } from '../services/conferenceHistory';
+import { formatToDDMMYYYY, formatForDateInput, formatDateTimeForDisplay } from '../utils/dateFormatter';
 
 interface HistoryByDateProps {
   className?: string;
@@ -11,7 +12,7 @@ export const HistoryByDate: React.FC<HistoryByDateProps> = ({
   onDataLoaded
 }) => {
   const [selectedDate, setSelectedDate] = useState<string>(
-    new Date().toISOString().split('T')[0]
+    formatForDateInput(new Date())
   );
   const [historyData, setHistoryData] = useState<ConferenceHistoryEntry[]>([]);
   const [dailySummary, setDailySummary] = useState<DailyOperationsSummary | null>(null);
@@ -27,9 +28,10 @@ export const HistoryByDate: React.FC<HistoryByDateProps> = ({
       let data: ConferenceHistoryEntry[] = [];
 
       if (dateRange === 'day') {
-        // Load single day data
-        data = await ConferenceHistoryService.getHistoryByDate(selectedDate);
-        const summary = await ConferenceHistoryService.getDailySummary(selectedDate);
+        // Load single day data - convert to DD-MM-YYYY format
+        const formattedDate = formatToDDMMYYYY(selectedDate);
+        data = await ConferenceHistoryService.getHistoryByDate(formattedDate);
+        const summary = await ConferenceHistoryService.getDailySummary(formattedDate);
         setDailySummary(summary);
       } else {
         // Calculate date range
@@ -43,8 +45,8 @@ export const HistoryByDate: React.FC<HistoryByDateProps> = ({
         }
 
         data = await ConferenceHistoryService.getHistoryByDateRange(
-          startDate.toISOString().split('T')[0],
-          endDate.toISOString().split('T')[0]
+          formatToDDMMYYYY(startDate),
+          formatToDDMMYYYY(endDate)
         );
         setDailySummary(null); // No summary for range
       }
@@ -66,25 +68,6 @@ export const HistoryByDate: React.FC<HistoryByDateProps> = ({
     }
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString + 'T00:00:00');
-    return date.toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
-  };
-
-  const formatDateTime = (dateTimeString: string) => {
-    const date = new Date(dateTimeString);
-    return date.toLocaleString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -202,7 +185,7 @@ export const HistoryByDate: React.FC<HistoryByDateProps> = ({
           </button>
           <button
             onClick={() => {
-              const today = new Date().toISOString().split('T')[0];
+              const today = formatForDateInput(new Date());
               setSelectedDate(today);
               setDateRange('day');
             }}
@@ -288,7 +271,7 @@ export const HistoryByDate: React.FC<HistoryByDateProps> = ({
                         </div>
                         {entry.operation_timestamp && (
                           <div className="text-xs text-gray-500 mt-1">
-                            {formatDateTime(entry.operation_timestamp)}
+                            {formatDateTimeForDisplay(entry.operation_timestamp)}
                           </div>
                         )}
                       </div>

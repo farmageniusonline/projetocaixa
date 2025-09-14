@@ -59,7 +59,7 @@ export class ConferenceHistoryService {
     const userId = await getCurrentUserId();
 
     const entries: ConferenceHistoryEntry[] = data.map(item => ({
-      operation_date: operationDate,
+      operation_date: operationDate, // operationDate já deve estar em DD-MM-YYYY
       operation_type: 'banking_upload',
       document_number: item.documentNumber,
       date: item.date,
@@ -96,7 +96,7 @@ export class ConferenceHistoryService {
     const userId = await getCurrentUserId();
 
     const entry: ConferenceHistoryEntry = {
-      operation_date: operationDate,
+      operation_date: operationDate, // operationDate já deve estar em DD-MM-YYYY
       operation_type: 'cash_conference',
       document_number: item.documentNumber,
       description: item.description,
@@ -128,7 +128,7 @@ export class ConferenceHistoryService {
     const numericValue = parseFloat(value.replace(',', '.').replace(/[^\d.-]/g, ''));
 
     const entry: ConferenceHistoryEntry = {
-      operation_date: operationDate,
+      operation_date: operationDate, // operationDate já deve estar em DD-MM-YYYY
       operation_type: 'not_found',
       value: isNaN(numericValue) ? 0 : numericValue,
       status: 'not_found',

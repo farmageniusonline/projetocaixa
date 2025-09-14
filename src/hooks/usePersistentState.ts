@@ -54,7 +54,7 @@ export function usePersistentState<T>(
  */
 export function useDashboardFilters() {
   return usePersistentState('dashboard_filters', {
-    selectedDate: new Date().toISOString().split('T')[0], // Data atual
+    selectedDate: new Date().toISOString().split('T')[0], // Data atual em formato ISO para input HTML
     searchValue: '',
     currentPage: 1,
     statusFilter: 'all' as 'all' | 'pending' | 'conferred' | 'not_found',

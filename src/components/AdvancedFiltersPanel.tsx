@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { AdvancedFilterOptions, DateRange, ValueRange, filterPresets, getAvailablePaymentTypes, getValueStatistics } from '../utils/advancedFilters';
+import { AdvancedFilterOptions, filterPresets, getAvailablePaymentTypes, getValueStatistics } from '../utils/advancedFilters';
 import { ParsedRow } from '../utils/excelParser';
+import { formatForDateInput } from '../utils/dateFormatter';
 
 interface AdvancedFiltersPanelProps {
   data: ParsedRow[];
@@ -43,13 +44,6 @@ export const AdvancedFiltersPanel: React.FC<AdvancedFiltersPanelProps> = ({
     onFiltersChange({});
   };
 
-  const formatDate = (date: Date): string => {
-    return date.toISOString().split('T')[0];
-  };
-
-  const parseDate = (dateStr: string): Date => {
-    return new Date(dateStr);
-  };
 
   return (
     <div className={`fixed right-0 top-16 h-full bg-gray-800 border-l border-gray-700 transition-transform duration-300 z-40 ${
@@ -120,10 +114,10 @@ export const AdvancedFiltersPanel: React.FC<AdvancedFiltersPanelProps> = ({
               <label className="block text-xs text-gray-400 mb-1">Data Inicial</label>
               <input
                 type="date"
-                value={filters.dateRange?.start ? formatDate(filters.dateRange.start) : ''}
+                value={filters.dateRange?.start ? formatForDateInput(filters.dateRange.start) : ''}
                 onChange={(e) => handleFilterChange({
                   dateRange: {
-                    start: parseDate(e.target.value),
+                    start: new Date(e.target.value),
                     end: filters.dateRange?.end || new Date()
                   }
                 })}
@@ -134,11 +128,11 @@ export const AdvancedFiltersPanel: React.FC<AdvancedFiltersPanelProps> = ({
               <label className="block text-xs text-gray-400 mb-1">Data Final</label>
               <input
                 type="date"
-                value={filters.dateRange?.end ? formatDate(filters.dateRange.end) : ''}
+                value={filters.dateRange?.end ? formatForDateInput(filters.dateRange.end) : ''}
                 onChange={(e) => handleFilterChange({
                   dateRange: {
                     start: filters.dateRange?.start || new Date(),
-                    end: parseDate(e.target.value)
+                    end: new Date(e.target.value)
                   }
                 })}
                 className="w-full px-3 py-2 text-sm text-gray-100 bg-gray-700 border border-gray-600 rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"

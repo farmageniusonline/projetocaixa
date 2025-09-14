@@ -10,6 +10,7 @@ import { HistoryByDate } from '../components/HistoryByDate';
 import { searchValueMatches, validateValueInput, ValueMatch } from '../utils/valueNormalizer';
 import { useDashboardFilters, usePersistentState } from '../hooks/usePersistentState';
 import { ConferenceHistoryService, ConferenceHistoryEntry } from '../services/conferenceHistory';
+import { formatForDisplay, getTodayDDMMYYYY } from '../utils/dateFormatter';
 
 export const Dashboard: React.FC = () => {
   const { user, logout } = useAuth();
@@ -21,7 +22,7 @@ export const Dashboard: React.FC = () => {
 
   // Local state (non-persistent)
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [operationDate, setOperationDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [operationDate, setOperationDate] = useState<string>(getTodayDDMMYYYY());
   const [uploadMode, setUploadMode] = useState<'automatic' | 'manual'>('automatic');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -139,7 +140,7 @@ export const Dashboard: React.FC = () => {
 
     try {
       const selectedDate = new Date(dashboardFilters.selectedDate);
-      const dateString = selectedDate.toLocaleDateString('pt-BR');
+      const dateString = formatForDisplay(selectedDate);
 
       // Filter conferred items by selected date
       const conferredForDate = conferredItems.filter(item => {
@@ -869,11 +870,7 @@ export const Dashboard: React.FC = () => {
                         </svg>
                         <span className="text-sm font-medium text-indigo-400">
                           Filtrado por: {dashboardFilters.selectedDate &&
-                            new Date(dashboardFilters.selectedDate).toLocaleDateString('pt-BR', {
-                              day: '2-digit',
-                              month: '2-digit',
-                              year: 'numeric'
-                            })
+                            formatForDisplay(dashboardFilters.selectedDate)
                           }
                         </span>
                       </div>
