@@ -29,7 +29,7 @@ export default defineConfig({
   // Configurações globais
   use: {
     // URL base para testes
-    baseURL: 'http://localhost:5175',
+    baseURL: 'http://localhost:5176',
 
     // Trace apenas em falhas
     trace: 'on-first-retry',
@@ -77,8 +77,8 @@ export default defineConfig({
 
   // Servidor local para desenvolvimento
   webServer: {
-    command: 'npm run dev:local',
-    port: 5175,
+    command: 'npm run dev',
+    port: 5176,
     reuseExistingServer: !process.env.CI,
     timeout: 120000,
   },

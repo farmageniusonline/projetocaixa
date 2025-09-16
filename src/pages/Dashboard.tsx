@@ -44,7 +44,10 @@ export const Dashboard: React.FC = () => {
     status: 'not_found';
   }>>('dashboard_not_found_history', [], {
     serialize: (value) => JSON.stringify(value.map(item => ({ ...item, timestamp: item.timestamp.toISOString() }))),
-    deserialize: (value) => JSON.parse(value).map((item: any) => ({ ...item, timestamp: new Date(item.timestamp) }))
+    deserialize: (value) => JSON.parse(value).map((item: any) => ({
+      ...item,
+      timestamp: item.timestamp ? new Date(item.timestamp) : new Date()
+    }))
   });
 
   // Conference states - non-persistent
@@ -140,19 +143,27 @@ export const Dashboard: React.FC = () => {
     console.log('Carregando histórico para data:', dashboardFilters.selectedDate);
 
     try {
-      const selectedDate = new Date(dashboardFilters.selectedDate);
+      // Validate date before creating Date object
+      if (!dashboardFilters.selectedDate || dashboardFilters.selectedDate === 'Invalid Date') {
+        setSearchError('Data inválida selecionada.');
+        return;
+      }
+
+      const selectedDate = new Date(dashboardFilters.selectedDate + 'T00:00:00');
       const dateString = formatForDisplay(selectedDate);
 
       // Filter conferred items by selected date
       const conferredForDate = conferredItems.filter(item => {
+        if (!item.conferredAt) return false;
         const itemDate = new Date(item.conferredAt);
-        return itemDate.toDateString() === selectedDate.toDateString();
+        return !isNaN(itemDate.getTime()) && itemDate.toDateString() === selectedDate.toDateString();
       });
 
       // Filter not found history by selected date
       const notFoundForDate = notFoundHistory.filter(item => {
+        if (!item.timestamp) return false;
         const itemDate = new Date(item.timestamp);
-        return itemDate.toDateString() === selectedDate.toDateString();
+        return !isNaN(itemDate.getTime()) && itemDate.toDateString() === selectedDate.toDateString();
       });
 
       // Calculate totals
@@ -521,10 +532,17 @@ export const Dashboard: React.FC = () => {
         </div>
       </header>
 
-      <div className="flex h-[calc(100vh-8rem)]">
+      <div className="flex min-h-[calc(100vh-8rem)]">
         {activeTab === 'launches' ? (
           <LaunchTab
-            currentDate={operationDate ? new Date(operationDate.split('/').reverse().join('-')) : new Date()}
+            currentDate={operationDate ? (() => {
+              try {
+                const [day, month, year] = operationDate.split('/');
+                return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+              } catch {
+                return new Date();
+              }
+            })() : new Date()}
             operationDate={operationDate}
             onLaunchAdded={handleLaunchAdded}
             conferredItems={conferredItems}
@@ -532,7 +550,7 @@ export const Dashboard: React.FC = () => {
         ) : activeTab === 'banking' ? (
           <>
             {/* Banking Conference Sidebar with Steps */}
-            <aside className="w-80 bg-gray-900 border-r border-gray-800 overflow-y-auto">
+            <aside className="w-80 bg-gray-900 border-r border-gray-800 sticky top-32 self-start">
               <div className="p-4 space-y-4">
             {/* Step 1: Load Spreadsheet */}
             <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
@@ -715,7 +733,14 @@ export const Dashboard: React.FC = () => {
                   .filter(entry => entry.operation_type === 'cash_conference' && entry.status === 'conferred')
                   .map(entry => ({
                     ...entry.metadata,
-                    conferredAt: new Date(entry.conferred_at || entry.operation_timestamp || ''),
+                    conferredAt: (() => {
+                      try {
+                        const dateStr = entry.conferred_at || entry.operation_timestamp || '';
+                        return dateStr ? new Date(dateStr) : new Date();
+                      } catch {
+                        return new Date();
+                      }
+                    })(),
                     conferredId: entry.id || `hist-${entry.operation_timestamp}`
                   }));
 
@@ -730,7 +755,7 @@ export const Dashboard: React.FC = () => {
             </aside>
 
             {/* Banking Conference Main Content Area */}
-            <main className="flex-1 bg-gray-950 p-6 overflow-hidden">
+            <main className="flex-1 bg-gray-950 p-6 min-h-[calc(100vh-8rem)] min-w-0">
               {isLoading ? (
                 <div className="bg-gray-800 rounded-lg shadow-2xl border border-gray-700 min-h-full p-8 flex items-center justify-center">
                   <div className="text-center">
@@ -770,7 +795,7 @@ export const Dashboard: React.FC = () => {
                   </div>
                 </div>
               ) : parseResult ? (
-                <div className="bg-gray-800 rounded-lg shadow-2xl border border-gray-700 h-full flex flex-col">
+                <div className="bg-gray-800 rounded-lg shadow-2xl border border-gray-700 min-h-[calc(100vh-12rem)] flex flex-col overflow-auto">
                   {parseResult.warnings.length > 0 && (
                     <div className="bg-yellow-900/20 border-b border-yellow-700 p-4">
                       <div className="flex items-start">
@@ -824,9 +849,9 @@ export const Dashboard: React.FC = () => {
           </>
         ) : (
           /* Cash Conference Layout */
-          <div className="flex w-full h-full">
+          <>
             {/* Left Block - Date Filter */}
-            <aside className="w-80 bg-gray-900 border-r border-gray-800 overflow-y-auto">
+            <aside className="w-80 bg-gray-900 border-r border-gray-800 sticky top-32 self-start">
               <div className="p-4">
                 <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
                   <h3 className="text-sm font-semibold text-gray-100 mb-3 flex items-center">
@@ -900,7 +925,7 @@ export const Dashboard: React.FC = () => {
             </aside>
 
             {/* Right Block - Transferred Records Table */}
-            <main className="flex-1 bg-gray-950 p-6 overflow-hidden">
+            <main className="flex-1 bg-gray-950 p-6 min-h-[calc(100vh-8rem)] min-w-0">
               <div className="bg-gray-800 rounded-lg shadow-2xl border border-gray-700 h-full">
                 {isShowingFiltered && (
                   <div className="bg-indigo-900/20 border-b border-indigo-700 p-3">
@@ -927,7 +952,7 @@ export const Dashboard: React.FC = () => {
                 />
               </div>
             </main>
-          </div>
+          </>
         )}
       </div>
       

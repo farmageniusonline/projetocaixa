@@ -125,66 +125,28 @@
     "version": "1.55.0",
     "workers": 1,
     "webServer": {
-      "command": "npm run dev:local",
-      "port": 5175,
+      "command": "npm run dev",
+      "port": 5176,
       "reuseExistingServer": true,
       "timeout": 120000
     }
   },
   "suites": [
     {
-      "title": "basic-login.spec.ts",
-      "file": "basic-login.spec.ts",
+      "title": "banking-conference-ux.spec.ts",
+      "file": "banking-conference-ux.spec.ts",
       "column": 0,
       "line": 0,
       "specs": [],
       "suites": [
         {
-          "title": "Basic Login Test",
-          "file": "basic-login.spec.ts",
+          "title": "Banking Conference UX Experience",
+          "file": "banking-conference-ux.spec.ts",
           "line": 3,
           "column": 6,
           "specs": [
             {
-              "title": "should successfully login with correct credentials",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 30000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chromium",
-                  "projectName": "chromium",
-                  "results": [
-                    {
-                      "workerIndex": 0,
-                      "parallelIndex": 0,
-                      "status": "passed",
-                      "duration": 965,
-                      "errors": [],
-                      "stdout": [
-                        {
-                          "text": "✅ Login test passed successfully!\n"
-                        }
-                      ],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2025-09-14T14:25:39.981Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "expected"
-                }
-              ],
-              "id": "3c5f7102ec12871e8e1d-e7e99407d0c0b1d11e87",
-              "file": "basic-login.spec.ts",
-              "line": 4,
-              "column": 3
-            },
-            {
-              "title": "should show error for invalid credentials",
+              "title": "should explore the complete user experience in banking conference tab",
               "ok": false,
               "tags": [],
               "tests": [
@@ -199,62 +161,140 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "failed",
-                      "duration": 6557,
+                      "duration": 15870,
                       "error": {
-                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m()\u001b[22m failed\n\nLocator:  getByText('Credenciais inválidas')\nExpected: visible\nReceived: <element(s) not found>\nTimeout:  5000ms\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByText('Credenciais inválidas')\u001b[22m\n",
-                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m()\u001b[22m failed\n\nLocator:  getByText('Credenciais inválidas')\nExpected: visible\nReceived: <element(s) not found>\nTimeout:  5000ms\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByText('Credenciais inválidas')\u001b[22m\n\n    at /workspaces/projetocaixa/tests/basic-login.spec.ts:38:59",
+                        "message": "TimeoutError: page.waitForSelector: Timeout 10000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('text=Carregar Planilha') to be visible\u001b[22m\n",
+                        "stack": "TimeoutError: page.waitForSelector: Timeout 10000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('text=Carregar Planilha') to be visible\u001b[22m\n\n    at /workspaces/projetocaixa/tests/banking-conference-ux.spec.ts:26:16",
                         "location": {
-                          "file": "/workspaces/projetocaixa/tests/basic-login.spec.ts",
-                          "column": 59,
-                          "line": 38
+                          "file": "/workspaces/projetocaixa/tests/banking-conference-ux.spec.ts",
+                          "column": 16,
+                          "line": 26
                         },
-                        "snippet": "  36 |\n  37 |     // Should show error message\n> 38 |     await expect(page.getByText('Credenciais inválidas')).toBeVisible({ timeout: 5000 });\n     |                                                           ^\n  39 |\n  40 |     // Should still be on login page\n  41 |     await expect(page).toHaveURL('/');"
+                        "snippet": "  24 |\n  25 |     // Wait for banking conference content to load\n> 26 |     await page.waitForSelector('text=Carregar Planilha');\n     |                ^\n  27 |\n  28 |     // Take screenshot of Banking Conference initial state\n  29 |     await page.screenshot({ path: 'screenshots/03-banking-conference-initial.png', fullPage: true });"
                       },
                       "errors": [
                         {
                           "location": {
-                            "file": "/workspaces/projetocaixa/tests/basic-login.spec.ts",
-                            "column": 59,
-                            "line": 38
+                            "file": "/workspaces/projetocaixa/tests/banking-conference-ux.spec.ts",
+                            "column": 16,
+                            "line": 26
                           },
-                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m()\u001b[22m failed\n\nLocator:  getByText('Credenciais inválidas')\nExpected: visible\nReceived: <element(s) not found>\nTimeout:  5000ms\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for getByText('Credenciais inválidas')\u001b[22m\n\n\n  36 |\n  37 |     // Should show error message\n> 38 |     await expect(page.getByText('Credenciais inválidas')).toBeVisible({ timeout: 5000 });\n     |                                                           ^\n  39 |\n  40 |     // Should still be on login page\n  41 |     await expect(page).toHaveURL('/');\n    at /workspaces/projetocaixa/tests/basic-login.spec.ts:38:59"
+                          "message": "TimeoutError: page.waitForSelector: Timeout 10000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('text=Carregar Planilha') to be visible\u001b[22m\n\n\n  24 |\n  25 |     // Wait for banking conference content to load\n> 26 |     await page.waitForSelector('text=Carregar Planilha');\n     |                ^\n  27 |\n  28 |     // Take screenshot of Banking Conference initial state\n  29 |     await page.screenshot({ path: 'screenshots/03-banking-conference-initial.png', fullPage: true });\n    at /workspaces/projetocaixa/tests/banking-conference-ux.spec.ts:26:16"
                         }
                       ],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2025-09-14T14:25:41.079Z",
+                      "startTime": "2025-09-16T09:42:18.254Z",
                       "annotations": [],
                       "attachments": [
                         {
                           "name": "screenshot",
                           "contentType": "image/png",
-                          "path": "/workspaces/projetocaixa/test-results/basic-login-Basic-Login-Te-bbf43-ror-for-invalid-credentials-chromium/test-failed-1.png"
+                          "path": "/workspaces/projetocaixa/test-results/banking-conference-ux-Bank-9ad8c-e-in-banking-conference-tab-chromium/test-failed-1.png"
                         },
                         {
                           "name": "video",
                           "contentType": "video/webm",
-                          "path": "/workspaces/projetocaixa/test-results/basic-login-Basic-Login-Te-bbf43-ror-for-invalid-credentials-chromium/video.webm"
+                          "path": "/workspaces/projetocaixa/test-results/banking-conference-ux-Bank-9ad8c-e-in-banking-conference-tab-chromium/video.webm"
                         },
                         {
                           "name": "error-context",
                           "contentType": "text/markdown",
-                          "path": "/workspaces/projetocaixa/test-results/basic-login-Basic-Login-Te-bbf43-ror-for-invalid-credentials-chromium/error-context.md"
+                          "path": "/workspaces/projetocaixa/test-results/banking-conference-ux-Bank-9ad8c-e-in-banking-conference-tab-chromium/error-context.md"
                         }
                       ],
                       "errorLocation": {
-                        "file": "/workspaces/projetocaixa/tests/basic-login.spec.ts",
-                        "column": 59,
-                        "line": 38
+                        "file": "/workspaces/projetocaixa/tests/banking-conference-ux.spec.ts",
+                        "column": 16,
+                        "line": 26
                       }
                     }
                   ],
                   "status": "unexpected"
                 }
               ],
-              "id": "3c5f7102ec12871e8e1d-b88d9aa72acac4172672",
-              "file": "basic-login.spec.ts",
-              "line": 28,
+              "id": "9ad1199e40d51b679526-0d4a614ebdeccca84d17",
+              "file": "banking-conference-ux.spec.ts",
+              "line": 4,
+              "column": 3
+            },
+            {
+              "title": "should test banking conference with file upload simulation",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 12429,
+                      "error": {
+                        "message": "TimeoutError: locator.hover: Timeout 10000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('label[for=\"fileInput\"]')\u001b[22m\n",
+                        "stack": "TimeoutError: locator.hover: Timeout 10000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('label[for=\"fileInput\"]')\u001b[22m\n\n    at /workspaces/projetocaixa/tests/banking-conference-ux.spec.ts:240:28",
+                        "location": {
+                          "file": "/workspaces/projetocaixa/tests/banking-conference-ux.spec.ts",
+                          "column": 28,
+                          "line": 240
+                        },
+                        "snippet": "  238 |\n  239 |     // Test file selection button interaction\n> 240 |     await chooseFileButton.hover();\n      |                            ^\n  241 |     console.log('✓ File selection button responds to hover');\n  242 |\n  243 |     // Test what happens when clicking choose file"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/workspaces/projetocaixa/tests/banking-conference-ux.spec.ts",
+                            "column": 28,
+                            "line": 240
+                          },
+                          "message": "TimeoutError: locator.hover: Timeout 10000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('label[for=\"fileInput\"]')\u001b[22m\n\n\n  238 |\n  239 |     // Test file selection button interaction\n> 240 |     await chooseFileButton.hover();\n      |                            ^\n  241 |     console.log('✓ File selection button responds to hover');\n  242 |\n  243 |     // Test what happens when clicking choose file\n    at /workspaces/projetocaixa/tests/banking-conference-ux.spec.ts:240:28"
+                        }
+                      ],
+                      "stdout": [
+                        {
+                          "text": "\n=== SIMULATING FILE UPLOAD EXPERIENCE ===\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-09-16T09:42:43.847Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/workspaces/projetocaixa/test-results/banking-conference-ux-Bank-72d86-with-file-upload-simulation-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "/workspaces/projetocaixa/test-results/banking-conference-ux-Bank-72d86-with-file-upload-simulation-chromium/video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/workspaces/projetocaixa/test-results/banking-conference-ux-Bank-72d86-with-file-upload-simulation-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/workspaces/projetocaixa/tests/banking-conference-ux.spec.ts",
+                        "column": 28,
+                        "line": 240
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "9ad1199e40d51b679526-dccc59f907eda9317086",
+              "file": "banking-conference-ux.spec.ts",
+              "line": 220,
               "column": 3
             }
           ]
@@ -264,11 +304,11 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2025-09-14T14:25:38.888Z",
-    "duration": 8827.629,
-    "expected": 1,
+    "startTime": "2025-09-16T09:42:17.462Z",
+    "duration": 39010.721,
+    "expected": 0,
     "skipped": 0,
-    "unexpected": 1,
+    "unexpected": 2,
     "flaky": 0
   }
 }

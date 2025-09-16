@@ -291,9 +291,9 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
   }, [handleAddLaunch]);
 
   return (
-    <div className="flex h-full">
+    <>
       {/* Left Sidebar */}
-      <aside className="w-80 bg-gray-900 border-r border-gray-800 overflow-y-auto">
+      <aside className="w-80 bg-gray-900 border-r border-gray-800 sticky top-32 self-start">
         <div className="p-4 space-y-4">
           {/* Payment Method Selection */}
           <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
@@ -485,7 +485,7 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
       </aside>
 
       {/* Main Content - Table */}
-      <main className="flex-1 bg-gray-950 p-6 overflow-hidden">
+      <main className="flex-1 bg-gray-950 p-6 min-h-[calc(100vh-8rem)] min-w-0">
         <div className="bg-gray-800 rounded-lg shadow-2xl border border-gray-700 h-full flex flex-col">
           <div className="p-4 border-b border-gray-700">
             <h2 className="text-lg font-semibold text-gray-100">Lançamentos Manuais</h2>
@@ -658,6 +658,6 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 };
