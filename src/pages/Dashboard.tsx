@@ -11,13 +11,14 @@ import { searchValueMatches, validateValueInput, ValueMatch } from '../utils/val
 import { useDashboardFilters, usePersistentState } from '../hooks/usePersistentState';
 import { ConferenceHistoryService, ConferenceHistoryEntry } from '../services/conferenceHistory';
 import { formatForDisplay, getTodayDDMMYYYY } from '../utils/dateFormatter';
+import { LaunchTab } from '../components/LaunchTab';
 
 export const Dashboard: React.FC = () => {
   const { user, logout } = useAuth();
 
   // Persistent state hooks
   const [dashboardFilters, setDashboardFilters] = useDashboardFilters();
-  const [activeTab, setActiveTab] = usePersistentState<'banking' | 'cash'>('dashboard_active_tab', 'banking');
+  const [activeTab, setActiveTab] = usePersistentState<'banking' | 'cash' | 'launches'>('dashboard_active_tab', 'banking');
   const [showHistory, setShowHistory] = usePersistentState('dashboard_show_history', false);
 
   // Local state (non-persistent)
@@ -393,7 +394,7 @@ export const Dashboard: React.FC = () => {
   }, [conferredItems]);
 
   // Clear messages when switching tabs or changing values
-  const handleTabChange = (tab: 'banking' | 'cash') => {
+  const handleTabChange = (tab: 'banking' | 'cash' | 'launches') => {
     setActiveTab(tab);
     setSearchError(null);
     setSearchSuccess(null);
@@ -408,6 +409,29 @@ export const Dashboard: React.FC = () => {
     setSearchError(null);
     setSearchSuccess(null);
   };
+
+  // Handle launches from LaunchTab
+  const handleLaunchAdded = useCallback((launchItem: any) => {
+    if (launchItem.remove) {
+      // Remove from conferredItems if it exists
+      setConferredItems(prev => prev.filter(item => item.conferredId !== launchItem.conferredId));
+    } else {
+      // Add to conferredItems
+      const newConferredItem = {
+        id: launchItem.id,
+        date: launchItem.date,
+        description: launchItem.description,
+        value: launchItem.value,
+        cpf: launchItem.cpf || '',
+        originalHistory: launchItem.originalHistory,
+        source: launchItem.source,
+        conferredAt: launchItem.conferredAt,
+        conferredId: launchItem.conferredId
+      };
+
+      setConferredItems(prev => [...prev, newConferredItem]);
+    }
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 to-black">
@@ -454,6 +478,16 @@ export const Dashboard: React.FC = () => {
           {/* Navigation Tabs */}
           <div className="flex space-x-1 border-t border-gray-800 pt-2">
             <button
+              onClick={() => handleTabChange('launches')}
+              className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+                activeTab === 'launches'
+                  ? 'bg-gray-800 text-gray-100 border-b-2 border-indigo-500'
+                  : 'text-gray-400 hover:text-gray-100 hover:bg-gray-800/50'
+              }`}
+            >
+              Lançamentos
+            </button>
+            <button
               onClick={() => handleTabChange('banking')}
               className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
                 activeTab === 'banking'
@@ -488,7 +522,14 @@ export const Dashboard: React.FC = () => {
       </header>
 
       <div className="flex h-[calc(100vh-8rem)]">
-        {activeTab === 'banking' ? (
+        {activeTab === 'launches' ? (
+          <LaunchTab
+            currentDate={operationDate ? new Date(operationDate.split('/').reverse().join('-')) : new Date()}
+            operationDate={operationDate}
+            onLaunchAdded={handleLaunchAdded}
+            conferredItems={conferredItems}
+          />
+        ) : activeTab === 'banking' ? (
           <>
             {/* Banking Conference Sidebar with Steps */}
             <aside className="w-80 bg-gray-900 border-r border-gray-800 overflow-y-auto">
