@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import ManipulariumLogo from '../assets/ManipulariumLogo.png';
 import { parseExcelFile, ParseResult } from '../utils/excelParser';
@@ -7,11 +7,12 @@ import { ValueSelectionModal } from '../components/ValueSelectionModal';
 import { CashConferenceTable } from '../components/CashConferenceTable';
 import { DateSelector } from '../components/DateSelector';
 import { HistoryByDate } from '../components/HistoryByDate';
-import { searchValueMatches, validateValueInput, ValueMatch } from '../utils/valueNormalizer';
+import { searchValueMatches, validateValueInput, ValueMatch, createValueIndex } from '../utils/valueNormalizer';
 import { useDashboardFilters, usePersistentState } from '../hooks/usePersistentState';
 import { ConferenceHistoryService, ConferenceHistoryEntry } from '../services/conferenceHistory';
 import { formatForDisplay, getTodayDDMMYYYY } from '../utils/dateFormatter';
 import { LaunchTab } from '../components/LaunchTab';
+import { useDebounce } from '../hooks/useDebounce';
 
 export const Dashboard: React.FC = () => {
   const { user, logout } = useAuth();
@@ -31,9 +32,31 @@ export const Dashboard: React.FC = () => {
 
   // Persistent state for parsed data
   const [parseResult, setParseResult] = usePersistentState<ParseResult | null>('dashboard_parse_result', null);
+
+  // Value index for optimized search
+  const [valueIndex, setValueIndex] = useState<Map<number, ValueMatch[]> | null>(null);
   
   // Conference states - persistent
-  const [conferredItems, setConferredItems] = usePersistentState<Array<ValueMatch & { conferredAt: Date; conferredId: string }>>('dashboard_conferred_items', []);
+  const [conferredItems, setConferredItems] = usePersistentState<Array<ValueMatch & { conferredAt: Date; conferredId: string }>>('dashboard_conferred_items', [], {
+    serialize: (value) => JSON.stringify(value.map(item => ({ ...item, conferredAt: item.conferredAt.toISOString() }))),
+    deserialize: (value) => JSON.parse(value).map((item: any) => {
+      let conferredAt = new Date();
+      try {
+        if (item.conferredAt) {
+          const parsed = new Date(item.conferredAt);
+          if (!isNaN(parsed.getTime())) {
+            conferredAt = parsed;
+          }
+        }
+      } catch (e) {
+        console.warn('Invalid conferredAt value:', item.conferredAt);
+      }
+      return {
+        ...item,
+        conferredAt
+      };
+    })
+  });
   const [transferredIds, setTransferredIds] = usePersistentState<Set<string>>('dashboard_transferred_ids', new Set(), {
     serialize: (value) => JSON.stringify(Array.from(value)),
     deserialize: (value) => new Set(JSON.parse(value))
@@ -44,10 +67,23 @@ export const Dashboard: React.FC = () => {
     status: 'not_found';
   }>>('dashboard_not_found_history', [], {
     serialize: (value) => JSON.stringify(value.map(item => ({ ...item, timestamp: item.timestamp.toISOString() }))),
-    deserialize: (value) => JSON.parse(value).map((item: any) => ({
-      ...item,
-      timestamp: item.timestamp ? new Date(item.timestamp) : new Date()
-    }))
+    deserialize: (value) => JSON.parse(value).map((item: any) => {
+      let timestamp = new Date();
+      try {
+        if (item.timestamp) {
+          const parsed = new Date(item.timestamp);
+          if (!isNaN(parsed.getTime())) {
+            timestamp = parsed;
+          }
+        }
+      } catch (e) {
+        console.warn('Invalid timestamp value:', item.timestamp);
+      }
+      return {
+        ...item,
+        timestamp
+      };
+    })
   });
 
   // Conference states - non-persistent
@@ -57,10 +93,39 @@ export const Dashboard: React.FC = () => {
   const [searchError, setSearchError] = useState<string | null>(null);
   const [searchSuccess, setSearchSuccess] = useState<string | null>(null);
   const [showRestartModal, setShowRestartModal] = useState(false);
+  const [previewResults, setPreviewResults] = useState<number | null>(null);
 
   // Historical data filtering states
   const [filteredConferredItems, setFilteredConferredItems] = useState<Array<ValueMatch & { conferredAt: Date; conferredId: string }>>([]);
   const [isShowingFiltered, setIsShowingFiltered] = useState(false);
+
+  // Debounce the conference value for preview
+  const debouncedConferenceValue = useDebounce(dashboardFilters.conferenceValue, 300);
+
+  // Preview search results as user types
+  useEffect(() => {
+    if (debouncedConferenceValue && parseResult?.data && valueIndex) {
+      const validation = validateValueInput(debouncedConferenceValue);
+      if (validation.isValid) {
+        const result = searchValueMatches(debouncedConferenceValue, parseResult.data, valueIndex);
+        setPreviewResults(result.matches.length);
+      } else {
+        setPreviewResults(null);
+      }
+    } else {
+      setPreviewResults(null);
+    }
+  }, [debouncedConferenceValue, parseResult, valueIndex]);
+
+  // Create value index when parseResult is loaded from persistent state
+  useEffect(() => {
+    if (parseResult && parseResult.data && parseResult.data.length > 0 && !valueIndex) {
+      console.log('Creating value index from persistent data...');
+      const index = createValueIndex(parseResult.data);
+      setValueIndex(index);
+      console.log(`Índice criado com ${index.size} valores únicos`);
+    }
+  }, [parseResult]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -92,6 +157,12 @@ export const Dashboard: React.FC = () => {
 
       if (result.success) {
         setParseResult(result);
+
+        // Create value index for optimized search
+        const index = createValueIndex(result.data);
+        setValueIndex(index);
+        console.log(`Índice criado com ${index.size} valores únicos`);
+
         console.log(`Arquivo processado em ${processingTime}ms`);
         console.log(`Linhas processadas: ${result.stats.totalRows}`);
         console.log(`Linhas válidas: ${result.stats.validRows}`);
@@ -125,6 +196,7 @@ export const Dashboard: React.FC = () => {
   const handleClearFile = () => {
     setSelectedFile(null);
     setParseResult(null);
+    setValueIndex(null);
     setError(null);
     // Reset transfer tracking
     setTransferredIds(new Set());
@@ -261,7 +333,7 @@ export const Dashboard: React.FC = () => {
     setSearchSuccess(null);
 
     try {
-      const searchResult = searchValueMatches(dashboardFilters.conferenceValue, parseResult.data);
+      const searchResult = searchValueMatches(dashboardFilters.conferenceValue, parseResult.data, valueIndex || undefined);
       
       if (!searchResult.hasMatches) {
         // Parse and format value as Brazilian currency
@@ -607,15 +679,31 @@ export const Dashboard: React.FC = () => {
                 Conferir Valor
               </h3>
               <div className="space-y-2">
-                <input
-                  type="text"
-                  placeholder="Digite o valor (ex: 123,45)"
-                  value={dashboardFilters.conferenceValue}
-                  onChange={(e) => handleConferenceValueChange(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && !isSearching && handleConferenceCheck()}
-                  disabled={!parseResult || isSearching}
-                  className="w-full px-3 py-2 text-sm text-gray-100 bg-gray-700 border border-gray-600 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Digite o valor (ex: 123,45)"
+                    value={dashboardFilters.conferenceValue}
+                    onChange={(e) => handleConferenceValueChange(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && !isSearching && handleConferenceCheck()}
+                    disabled={!parseResult || isSearching}
+                    className="w-full px-3 py-2 pr-20 text-sm text-gray-100 bg-gray-700 border border-gray-600 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  />
+                  {previewResults !== null && (
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                      <span className={`text-xs px-2 py-1 rounded-full ${
+                        previewResults > 0
+                          ? 'bg-green-900/50 text-green-400 border border-green-600'
+                          : 'bg-red-900/50 text-red-400 border border-red-600'
+                      }`}>
+                        {previewResults > 0
+                          ? `${previewResults} ${previewResults === 1 ? 'resultado' : 'resultados'}`
+                          : 'Sem resultados'
+                        }
+                      </span>
+                    </div>
+                  )}
+                </div>
                 <button
                   onClick={handleConferenceCheck}
                   disabled={!parseResult || isSearching || !dashboardFilters.conferenceValue.trim()}

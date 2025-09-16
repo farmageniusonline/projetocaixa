@@ -49,15 +49,53 @@ export function normalizeValue(input: string | number): number {
   return isNaN(parsed) ? 0 : Math.round(parsed * 100) / 100;
 }
 
+// Cache for normalized values to avoid recalculation
+const valueCache = new WeakMap<any, number>();
+
 /**
- * Search for exact value matches in the dataset
+ * Create an index of the dataset by normalized values for fast lookup
+ */
+export function createValueIndex(dataset: any[]): Map<number, ValueMatch[]> {
+  const index = new Map<number, ValueMatch[]>();
+
+  dataset.forEach((row, rowIndex) => {
+    // Check cache first
+    let normalizedValue = valueCache.get(row);
+    if (normalizedValue === undefined) {
+      normalizedValue = normalizeValue(row.value);
+      valueCache.set(row, normalizedValue);
+    }
+
+    if (normalizedValue !== 0) {
+      if (!index.has(normalizedValue)) {
+        index.set(normalizedValue, []);
+      }
+
+      index.get(normalizedValue)!.push({
+        id: `row-${rowIndex}-${row.date}-${row.value}`,
+        date: row.date,
+        paymentType: row.paymentType,
+        cpf: row.cpf,
+        value: row.value,
+        originalHistory: row.originalHistory,
+        rowIndex,
+      });
+    }
+  });
+
+  return index;
+}
+
+/**
+ * Search for exact value matches in the dataset using an index
  */
 export function searchValueMatches(
-  searchValue: string | number, 
-  dataset: any[]
+  searchValue: string | number,
+  dataset: any[],
+  index?: Map<number, ValueMatch[]>
 ): ValueMatchResult {
   const normalizedInput = normalizeValue(searchValue);
-  
+
   if (normalizedInput === 0) {
     return {
       hasMatches: false,
@@ -66,14 +104,29 @@ export function searchValueMatches(
     };
   }
 
+  // Use index if provided for O(1) lookup
+  if (index) {
+    const matches = index.get(normalizedInput) || [];
+    return {
+      hasMatches: matches.length > 0,
+      matches,
+      normalizedInput,
+    };
+  }
+
+  // Fallback to linear search if no index
   const matches: ValueMatch[] = [];
 
   dataset.forEach((row, index) => {
-    const normalizedRowValue = normalizeValue(row.value);
-    
+    let normalizedRowValue = valueCache.get(row);
+    if (normalizedRowValue === undefined) {
+      normalizedRowValue = normalizeValue(row.value);
+      valueCache.set(row, normalizedRowValue);
+    }
+
     if (normalizedRowValue === normalizedInput) {
       matches.push({
-        id: `row-${index}-${row.date}-${row.value}`, // Unique ID based on row data
+        id: `row-${index}-${row.date}-${row.value}`,
         date: row.date,
         paymentType: row.paymentType,
         cpf: row.cpf,

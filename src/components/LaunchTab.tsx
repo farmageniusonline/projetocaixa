@@ -1,5 +1,5 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { formatForDisplay, formatToDDMMYYYY, getTodayDDMMYYYY } from '../utils/dateFormatter';
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { formatForDisplay } from '../utils/dateFormatter';
 import { useDashboardFilters } from '../hooks/usePersistentState';
 
 type PaymentMethod =
@@ -27,11 +27,24 @@ interface Launch {
   timestamp: Date;
 }
 
+interface ConferenceItem {
+  id: string;
+  date: string;
+  description: string;
+  value: number;
+  originalHistory: string;
+  source: string;
+  cpf: string;
+  conferredAt: Date;
+  conferredId: string;
+  remove?: boolean;
+}
+
 interface LaunchTabProps {
   currentDate: Date;
   operationDate: string; // DD/MM/YYYY format from global state
-  onLaunchAdded: (launch: any) => void; // Callback when a launch is added
-  conferredItems: any[]; // To check for duplicates
+  onLaunchAdded: (launch: ConferenceItem) => void; // Callback when a launch is added
+  conferredItems: ConferenceItem[]; // To check for duplicates
 }
 
 const STORAGE_KEY = 'dashboard_launches';
@@ -40,12 +53,39 @@ const loadLaunches = (): Launch[] => {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
-      const parsed = JSON.parse(saved);
-      return parsed.map((item: any) => ({
-        ...item,
-        date: new Date(item.date),
-        timestamp: new Date(item.timestamp),
-      }));
+      const parsed = JSON.parse(saved) as Launch[];
+      return parsed.map((item) => {
+        let date = new Date();
+        let timestamp = new Date();
+
+        try {
+          if (item.date) {
+            const parsed = new Date(item.date);
+            if (!isNaN(parsed.getTime())) {
+              date = parsed;
+            }
+          }
+        } catch (e) {
+          console.warn('Invalid date value:', item.date);
+        }
+
+        try {
+          if (item.timestamp) {
+            const parsed = new Date(item.timestamp);
+            if (!isNaN(parsed.getTime())) {
+              timestamp = parsed;
+            }
+          }
+        } catch (e) {
+          console.warn('Invalid timestamp value:', item.timestamp);
+        }
+
+        return {
+          ...item,
+          date,
+          timestamp,
+        };
+      });
     }
   } catch (error) {
     console.error('Error loading launches:', error);
@@ -72,6 +112,7 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
   const [sortField, setSortField] = useState<'date' | 'value'>('date');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [filterMessage, setFilterMessage] = useState<string | null>(null);
+  const [paymentTypeFilter, setPaymentTypeFilter] = useState<PaymentMethod | 'all'>('all');
   const [showUndoModal, setShowUndoModal] = useState(false);
   const [launchToUndo, setLaunchToUndo] = useState<Launch | null>(null);
 
@@ -94,7 +135,7 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
     return currentDate;
   }, [dashboardFilters.selectedDate, operationDate, currentDate]);
 
-  const paymentMethods = [
+  const paymentMethods = useMemo(() => [
     { id: 'credit_1x' as PaymentMethod, label: 'Cartão de Crédito 1x', group: 'credit' },
     { id: 'credit_2x' as PaymentMethod, label: 'Cartão de Crédito 2x', group: 'credit' },
     { id: 'credit_3x' as PaymentMethod, label: 'Cartão de Crédito 3x', group: 'credit' },
@@ -104,7 +145,7 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
     { id: 'cash' as PaymentMethod, label: 'Dinheiro', group: 'other' },
     { id: 'coins' as PaymentMethod, label: 'Moedas', group: 'other' },
     { id: 'deposit' as PaymentMethod, label: 'Depósito', group: 'other' },
-  ];
+  ], []);
 
   const formatCurrency = (val: string): string => {
     const numericValue = val.replace(/[^\d,]/g, '').replace(',', '.');
@@ -198,6 +239,37 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
     setTimeout(() => setSuccess(null), 3000);
   }, [selectedMethod, isLink, value, getFilterDate, launches, conferredItems, onLaunchAdded]);
 
+  const handleClearFilters = useCallback(() => {
+    setPaymentTypeFilter('all');
+    setDashboardFilters(prev => ({ ...prev, selectedDate: '' }));
+    setFilterMessage('Todos os filtros foram removidos');
+    setTimeout(() => setFilterMessage(null), 3000);
+
+    // Keep focus on value input
+    if (valueInputRef.current) {
+      valueInputRef.current.focus();
+    }
+  }, [setDashboardFilters]);
+
+  const handlePaymentTypeFilterChange = useCallback((newFilter: PaymentMethod | 'all') => {
+    setPaymentTypeFilter(newFilter);
+
+    // Update filter message
+    if (newFilter === 'all') {
+      setFilterMessage('Exibindo todos os tipos de pagamento');
+    } else {
+      const method = paymentMethods.find(m => m.id === newFilter);
+      setFilterMessage(`Filtrado por: ${method?.label || newFilter}`);
+    }
+
+    setTimeout(() => setFilterMessage(null), 3000);
+
+    // Keep focus on value input
+    if (valueInputRef.current) {
+      valueInputRef.current.focus();
+    }
+  }, [paymentMethods]);
+
   const handleMethodSelect = (method: PaymentMethod) => {
     setSelectedMethod(method);
     setError(null);
@@ -267,7 +339,38 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
 
   const filterDate = getFilterDate();
   const filteredLaunches = sortedLaunches.filter(launch => {
-    return launch.date.toDateString() === filterDate.toDateString();
+    // Filter by date
+    const dateMatches = launch.date.toDateString() === filterDate.toDateString();
+
+    // Filter by payment type
+    let typeMatches = true;
+    if (paymentTypeFilter !== 'all') {
+      // Convert launch payment type to match our filter format
+      const launchPaymentType = launch.paymentType.toLowerCase().replace(/\s+/g, '_');
+      const filterType = paymentTypeFilter.toString();
+
+      // Handle credit card matches
+      if (filterType.startsWith('credit_')) {
+        typeMatches = launchPaymentType.includes('crédito') || launchPaymentType.includes('credito');
+
+        // Check specific credit installment if available
+        const installmentMatch = filterType.match(/credit_(\d+)x/);
+        if (installmentMatch) {
+          const installments = installmentMatch[1];
+          typeMatches = typeMatches && launchPaymentType.includes(`${installments}x`);
+        }
+      } else if (filterType === 'debit') {
+        typeMatches = launchPaymentType.includes('débito') || launchPaymentType.includes('debito');
+      } else if (filterType === 'cash') {
+        typeMatches = launchPaymentType.includes('dinheiro');
+      } else if (filterType === 'coins') {
+        typeMatches = launchPaymentType.includes('moedas');
+      } else if (filterType === 'deposit') {
+        typeMatches = launchPaymentType.includes('depósito') || launchPaymentType.includes('deposito');
+      }
+    }
+
+    return dateMatches && typeMatches;
   });
 
   const totals = {
@@ -492,6 +595,40 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
             <p className="text-sm text-gray-400 mt-1">
               {filteredLaunches.length} lançamento(s) para {formatForDisplay(filterDate)}
             </p>
+          </div>
+
+          {/* Payment Type Filter Block */}
+          <div className="bg-gray-800 border-b border-gray-700 p-4">
+            <div className="flex flex-wrap gap-4">
+              <div className="flex-1 min-w-[200px]">
+                <label className="block text-xs text-gray-400 mb-1">Filtrar por Tipo de Pagamento</label>
+                <select
+                  value={paymentTypeFilter}
+                  onChange={(e) => handlePaymentTypeFilterChange(e.target.value as PaymentMethod | 'all')}
+                  className="w-full px-3 py-2 text-sm text-gray-100 bg-gray-700 border border-gray-600 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                >
+                  <option value="all">Todos</option>
+                  <option value="credit_1x">Crédito 1x</option>
+                  <option value="credit_2x">Crédito 2x</option>
+                  <option value="credit_3x">Crédito 3x</option>
+                  <option value="credit_4x">Crédito 4x</option>
+                  <option value="credit_5x">Crédito 5x</option>
+                  <option value="debit">Débito</option>
+                  <option value="cash">Dinheiro</option>
+                  <option value="coins">Moedas</option>
+                  <option value="deposit">Depósito</option>
+                </select>
+              </div>
+              <div className="flex items-end">
+                <button
+                  onClick={handleClearFilters}
+                  className="px-4 py-2 text-sm font-medium text-gray-300 bg-gray-700 border border-gray-600 rounded-md hover:bg-gray-600 transition-colors"
+                >
+                  Limpar Filtros
+                </button>
+              </div>
+            </div>
+
           </div>
 
           <div className="flex-1 overflow-auto">
