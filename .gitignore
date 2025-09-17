@@ -25,6 +25,8 @@ dist-ssr
 
 # Test results
 test-results/
+playwright-report/
+test-results.json
 
 # Environment variables
 .env
