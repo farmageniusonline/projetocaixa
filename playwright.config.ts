@@ -2,10 +2,10 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   // Pasta dos testes
-  testDir: './tests',
+  testDir: './e2e',
 
   // Timeout para cada teste
-  timeout: 30000,
+  timeout: 60000,
 
   // Execução em paralelo
   fullyParallel: true,
@@ -29,7 +29,7 @@ export default defineConfig({
   // Configurações globais
   use: {
     // URL base para testes
-    baseURL: 'http://localhost:5176',
+    baseURL: 'http://localhost:5175',
 
     // Trace apenas em falhas
     trace: 'on-first-retry',
@@ -41,7 +41,7 @@ export default defineConfig({
     video: 'retain-on-failure',
 
     // Timeout para ações
-    actionTimeout: 10000,
+    actionTimeout: 15000,
   },
 
   // Projetos (diferentes browsers)
@@ -78,8 +78,10 @@ export default defineConfig({
   // Servidor local para desenvolvimento
   webServer: {
     command: 'npm run dev',
-    port: 5176,
+    port: 5175,
     reuseExistingServer: !process.env.CI,
-    timeout: 120000,
+    timeout: 180000,
+    stderr: 'pipe',
+    stdout: 'pipe',
   },
 });

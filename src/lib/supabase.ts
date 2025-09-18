@@ -1,16 +1,26 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321'
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'mock-key-for-development'
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-// Create a mock client for development when Supabase is not configured
-const isSupabaseConfigured = supabaseUrl !== 'http://localhost:54321' && supabaseKey !== 'mock-key-for-development'
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error('Missing Supabase environment variables')
+}
 
 export const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: {
-    autoRefreshToken: isSupabaseConfigured,
-    persistSession: isSupabaseConfigured,
-    detectSessionInUrl: false
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true,
+    storage: window.localStorage
+  },
+  db: {
+    schema: 'public'
+  },
+  global: {
+    headers: {
+      'x-application': 'farmageniuscaixa'
+    }
   }
 })
 

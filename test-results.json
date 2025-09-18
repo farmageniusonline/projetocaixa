@@ -1,7 +1,7 @@
 {
   "config": {
     "configFile": "/workspaces/projetocaixa/playwright.config.ts",
-    "rootDir": "/workspaces/projetocaixa/tests",
+    "rootDir": "/workspaces/projetocaixa/e2e",
     "forbidOnly": false,
     "fullyParallel": true,
     "globalSetup": null,
@@ -10,7 +10,9 @@
     "grep": {},
     "grepInvert": null,
     "maxFailures": 0,
-    "metadata": {},
+    "metadata": {
+      "actualWorkers": 1
+    },
     "preserveOutput": "always",
     "reporter": [
       [
@@ -40,71 +42,81 @@
         "outputDir": "/workspaces/projetocaixa/test-results",
         "repeatEach": 1,
         "retries": 0,
-        "metadata": {},
+        "metadata": {
+          "actualWorkers": 1
+        },
         "id": "chromium",
         "name": "chromium",
-        "testDir": "/workspaces/projetocaixa/tests",
+        "testDir": "/workspaces/projetocaixa/e2e",
         "testIgnore": [],
         "testMatch": [
           "**/*.@(spec|test).?(c|m)[jt]s?(x)"
         ],
-        "timeout": 30000
+        "timeout": 60000
       },
       {
         "outputDir": "/workspaces/projetocaixa/test-results",
         "repeatEach": 1,
         "retries": 0,
-        "metadata": {},
+        "metadata": {
+          "actualWorkers": 1
+        },
         "id": "firefox",
         "name": "firefox",
-        "testDir": "/workspaces/projetocaixa/tests",
+        "testDir": "/workspaces/projetocaixa/e2e",
         "testIgnore": [],
         "testMatch": [
           "**/*.@(spec|test).?(c|m)[jt]s?(x)"
         ],
-        "timeout": 30000
+        "timeout": 60000
       },
       {
         "outputDir": "/workspaces/projetocaixa/test-results",
         "repeatEach": 1,
         "retries": 0,
-        "metadata": {},
+        "metadata": {
+          "actualWorkers": 1
+        },
         "id": "webkit",
         "name": "webkit",
-        "testDir": "/workspaces/projetocaixa/tests",
+        "testDir": "/workspaces/projetocaixa/e2e",
         "testIgnore": [],
         "testMatch": [
           "**/*.@(spec|test).?(c|m)[jt]s?(x)"
         ],
-        "timeout": 30000
+        "timeout": 60000
       },
       {
         "outputDir": "/workspaces/projetocaixa/test-results",
         "repeatEach": 1,
         "retries": 0,
-        "metadata": {},
+        "metadata": {
+          "actualWorkers": 1
+        },
         "id": "Mobile Chrome",
         "name": "Mobile Chrome",
-        "testDir": "/workspaces/projetocaixa/tests",
+        "testDir": "/workspaces/projetocaixa/e2e",
         "testIgnore": [],
         "testMatch": [
           "**/*.@(spec|test).?(c|m)[jt]s?(x)"
         ],
-        "timeout": 30000
+        "timeout": 60000
       },
       {
         "outputDir": "/workspaces/projetocaixa/test-results",
         "repeatEach": 1,
         "retries": 0,
-        "metadata": {},
+        "metadata": {
+          "actualWorkers": 1
+        },
         "id": "Mobile Safari",
         "name": "Mobile Safari",
-        "testDir": "/workspaces/projetocaixa/tests",
+        "testDir": "/workspaces/projetocaixa/e2e",
         "testIgnore": [],
         "testMatch": [
           "**/*.@(spec|test).?(c|m)[jt]s?(x)"
         ],
-        "timeout": 30000
+        "timeout": 60000
       }
     ],
     "shard": null,
@@ -114,22 +126,218 @@
     "workers": 1,
     "webServer": {
       "command": "npm run dev",
-      "port": 5176,
+      "port": 5175,
       "reuseExistingServer": true,
-      "timeout": 120000
+      "timeout": 180000,
+      "stderr": "pipe",
+      "stdout": "pipe"
     }
   },
-  "suites": [],
-  "errors": [
+  "suites": [
     {
-      "message": "TypeError: Cannot redefine property: Symbol($$jest-matchers-object)",
-      "stack": "TypeError: Cannot redefine property: Symbol($$jest-matchers-object)\n    at /workspaces/projetocaixa/node_modules/@vitest/expect/dist/index.js:667:9"
+      "title": "useref-fix-test.spec.ts",
+      "file": "useref-fix-test.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "should verify useRef fix",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 7038,
+                  "errors": [],
+                  "stdout": [
+                    {
+                      "text": "useRef errors found: \u001b[33m0\u001b[39m\n"
+                    }
+                  ],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2025-09-17T17:31:03.177Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "631fb85116a08daa2c8c-6441b0969b0c64911800",
+          "file": "useref-fix-test.spec.ts",
+          "line": 3,
+          "column": 1
+        },
+        {
+          "title": "should verify useRef fix",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "firefox",
+              "projectName": "firefox",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 18931,
+                  "errors": [],
+                  "stdout": [
+                    {
+                      "text": "useRef errors found: \u001b[33m0\u001b[39m\n"
+                    }
+                  ],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2025-09-17T17:31:11.250Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "631fb85116a08daa2c8c-d459e96d9215bfb30a19",
+          "file": "useref-fix-test.spec.ts",
+          "line": 3,
+          "column": 1
+        },
+        {
+          "title": "should verify useRef fix",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "webkit",
+              "projectName": "webkit",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 19905,
+                  "errors": [],
+                  "stdout": [
+                    {
+                      "text": "useRef errors found: \u001b[33m0\u001b[39m\n"
+                    }
+                  ],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2025-09-17T17:31:33.788Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "631fb85116a08daa2c8c-1a40c5260d0b30017d4e",
+          "file": "useref-fix-test.spec.ts",
+          "line": 3,
+          "column": 1
+        },
+        {
+          "title": "should verify useRef fix",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "Mobile Chrome",
+              "projectName": "Mobile Chrome",
+              "results": [
+                {
+                  "workerIndex": 3,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 6919,
+                  "errors": [],
+                  "stdout": [
+                    {
+                      "text": "useRef errors found: \u001b[33m0\u001b[39m\n"
+                    }
+                  ],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2025-09-17T17:32:02.084Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "631fb85116a08daa2c8c-556ff79560d22f0a867b",
+          "file": "useref-fix-test.spec.ts",
+          "line": 3,
+          "column": 1
+        },
+        {
+          "title": "should verify useRef fix",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "Mobile Safari",
+              "projectName": "Mobile Safari",
+              "results": [
+                {
+                  "workerIndex": 4,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 12581,
+                  "errors": [],
+                  "stdout": [
+                    {
+                      "text": "useRef errors found: \u001b[33m0\u001b[39m\n"
+                    }
+                  ],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2025-09-17T17:32:10.519Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "631fb85116a08daa2c8c-bd5a0edf2a09983b44a4",
+          "file": "useref-fix-test.spec.ts",
+          "line": 3,
+          "column": 1
+        }
+      ]
     }
   ],
+  "errors": [],
   "stats": {
-    "startTime": "2025-09-16T10:30:54.370Z",
-    "duration": 1452.0950000000003,
-    "expected": 0,
+    "startTime": "2025-09-17T17:31:02.377Z",
+    "duration": 80979.492,
+    "expected": 5,
     "skipped": 0,
     "unexpected": 0,
     "flaky": 0

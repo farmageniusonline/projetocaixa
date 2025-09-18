@@ -63,7 +63,7 @@ describe('DateSelector', () => {
     );
 
     await waitFor(() => {
-      expect(mockOnDateSelected).toHaveBeenCalledWith('2024-01-15', 'automatic');
+      expect(mockOnDateSelected).toHaveBeenCalledWith('15-01-2024', 'automatic');
     });
   });
 
@@ -78,7 +78,8 @@ describe('DateSelector', () => {
 
     vi.mocked(excelParser.parseExcelFile).mockResolvedValue(mockParseResult);
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date();
+    const expectedDate = `${today.getDate().toString().padStart(2, '0')}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getFullYear()}`;
 
     render(
       <DateSelector
@@ -88,7 +89,7 @@ describe('DateSelector', () => {
     );
 
     await waitFor(() => {
-      expect(mockOnDateSelected).toHaveBeenCalledWith(today, 'automatic');
+      expect(mockOnDateSelected).toHaveBeenCalledWith(expectedDate, 'automatic');
     });
   });
 
@@ -106,7 +107,7 @@ describe('DateSelector', () => {
     const dateInput = screen.getByLabelText(/Selecionar data manualmente/i);
     fireEvent.change(dateInput, { target: { value: '2024-03-20' } });
 
-    expect(mockOnDateSelected).toHaveBeenCalledWith('2024-03-20', 'manual');
+    expect(mockOnDateSelected).toHaveBeenCalledWith('20-03-2024', 'manual');
   });
 
   it('shows loading state while detecting date', async () => {

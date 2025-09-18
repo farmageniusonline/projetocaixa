@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { ValueMatch, formatCurrency } from '../utils/valueNormalizer';
+import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 
 interface ValueSelectionModalProps {
   isOpen: boolean;
@@ -16,6 +17,26 @@ export const ValueSelectionModal: React.FC<ValueSelectionModalProps> = ({
   onSelect,
   onClose,
 }) => {
+  // Modal keyboard shortcuts
+  const modalShortcuts = [
+    {
+      key: 'Escape',
+      action: onClose,
+      description: 'Fechar modal (Esc)'
+    },
+    {
+      key: 'Enter',
+      action: () => {
+        if (matches.length > 0) {
+          onSelect(matches[0]);
+        }
+      },
+      description: 'Selecionar primeiro item (Enter)'
+    }
+  ];
+
+  useKeyboardShortcuts(modalShortcuts, isOpen);
+
   if (!isOpen) return null;
 
   const formatCPF = (cpf: string) => {

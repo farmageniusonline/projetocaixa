@@ -1,34 +1,67 @@
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import ManipulariumLogo from '../assets/ManipulariumLogo.png';
 import { parseExcelFile, ParseResult } from '../utils/excelParser';
 import { DataTable } from '../components/DataTable';
+import { VirtualizedDataTable } from '../components/VirtualizedDataTable';
+import { VirtualizedCashTable } from '../components/VirtualizedCashTable';
+import { VirtualizedHistoryTable } from '../components/VirtualizedHistoryTable';
 import { ValueSelectionModal } from '../components/ValueSelectionModal';
 import { CashConferenceTable } from '../components/CashConferenceTable';
 import { DateSelector } from '../components/DateSelector';
 import { HistoryByDate } from '../components/HistoryByDate';
+import { ActionLogPanel } from '../components/ActionLogPanel';
+import { BackupPanel } from '../components/BackupPanel';
+import { ExportButtons } from '../components/ExportButtons';
 import { searchValueMatches, validateValueInput, ValueMatch, createValueIndex } from '../utils/valueNormalizer';
+import { formSchemas, safeValidate } from '../utils/validationSchemas';
+import { ValidationError, useFieldValidation } from '../components/ValidationError';
+import { DevPerformancePanel } from '../components/DevPerformancePanel';
+import { KeyboardShortcutsHelp } from '../components/KeyboardShortcutsHelp';
+import { performanceLogger } from '../utils/performanceLogger';
 import { useDashboardFilters, usePersistentState } from '../hooks/usePersistentState';
-import { ConferenceHistoryService, ConferenceHistoryEntry } from '../services/conferenceHistory';
+import StorageAdapter from '../lib/storageAdapter';
+import { ConferenceHistoryEntry } from '../services/indexedDbService';
 import { formatForDisplay, getTodayDDMMYYYY } from '../utils/dateFormatter';
 import { LaunchTab } from '../components/LaunchTab';
 import { useDebounce } from '../hooks/useDebounce';
+import { StorageStatus } from '../components/StorageStatus';
+import { ProcessingSpinner, useProcessingState } from '../components/ProcessingSpinner';
+import { useExcelWorker } from '../hooks/useExcelWorker';
+import { useGlobalKeyboardShortcuts, useFocusManager, useFocusRestore } from '../hooks/useKeyboardShortcuts';
+import { useValueLookup } from '../hooks/useValueLookup';
+import toast from 'react-hot-toast';
 
 export const Dashboard: React.FC = () => {
   const { user, logout } = useAuth();
 
+  // Web Worker hooks
+  const { processExcelFile, terminateWorker } = useExcelWorker();
+  const processingState = useProcessingState();
+
+  // Value lookup hook for O(1) search
+  const valueLookup = useValueLookup();
+
   // Persistent state hooks
   const [dashboardFilters, setDashboardFilters] = useDashboardFilters();
-  const [activeTab, setActiveTab] = usePersistentState<'banking' | 'cash' | 'launches'>('dashboard_active_tab', 'banking');
+  const [activeTab, setActiveTab] = usePersistentState<'banking' | 'cash' | 'launches' | 'actions' | 'backup'>('dashboard_active_tab', 'banking');
   const [showHistory, setShowHistory] = usePersistentState('dashboard_show_history', false);
 
   // Local state (non-persistent)
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [operationDate, setOperationDate] = useState<string>(getTodayDDMMYYYY());
   const [uploadMode, setUploadMode] = useState<'automatic' | 'manual'>('automatic');
-  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadedHistory, setLoadedHistory] = useState<ConferenceHistoryEntry[]>([]);
+  const [showPerformancePanel, setShowPerformancePanel] = useState(false);
+
+  // Focus management for keyboard shortcuts
+  const { registerFocusTarget, focusTarget, getFocusTarget } = useFocusManager();
+  const { saveFocus, restoreFocus } = useFocusRestore();
+
+  // Refs for keyboard shortcuts
+  const conferenceValueRef = useRef<HTMLInputElement>(null);
+  const dateFilterRef = useRef<HTMLInputElement>(null);
 
   // Persistent state for parsed data
   const [parseResult, setParseResult] = usePersistentState<ParseResult | null>('dashboard_parse_result', null);
@@ -99,6 +132,139 @@ export const Dashboard: React.FC = () => {
   const [filteredConferredItems, setFilteredConferredItems] = useState<Array<ValueMatch & { conferredAt: Date; conferredId: string }>>([]);
   const [isShowingFiltered, setIsShowingFiltered] = useState(false);
 
+  // Keyboard shortcuts setup
+  const closeModals = useCallback(() => {
+    setShowSelectionModal(false);
+    setShowRestartModal(false);
+    setShowPerformancePanel(false);
+    restoreFocus();
+  }, [restoreFocus]);
+
+  // Conference value search and transfer logic
+  const handleConferenceCheck = useCallback(async () => {
+    // Use Zod validation instead of legacy validator
+    const validation = safeValidate(formSchemas.conferenceValue, {
+      value: dashboardFilters.conferenceValue
+    });
+
+    if (!validation.success) {
+      setSearchError(validation.error);
+      return;
+    }
+
+    setIsSearching(true);
+    setSearchError(null);
+    setSearchMatches([]);
+
+    try {
+      // Use the DataAdapter to search for matches
+      const searchValue = dashboardFilters.conferenceValue.trim();
+      const results = await performanceLogger.time('conference-search', async () => {
+        return await dataAdapter.searchConferenceValue(
+          searchValue,
+          dashboardFilters.selectedDate || formatDateForQuery(new Date())
+        );
+      });
+
+      if (results.length === 0) {
+        setSearchError('Nenhum valor encontrado para conferência');
+        return;
+      }
+
+      setSearchMatches(results);
+
+      if (results.length === 1) {
+        // Auto-select if only one match
+        const conferredItem = {
+          ...results[0],
+          conferredAt: new Date(),
+          conferredId: `conf-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        };
+        setConferredItems(prev => [conferredItem, ...prev]);
+        setDashboardFilters(prev => ({ ...prev, conferenceValue: '' }));
+        setSearchMatches([]);
+        setSearchSuccess('Valor conferido automaticamente!');
+        setTimeout(() => setSearchSuccess(null), 3000);
+      } else {
+        // Show selection modal for multiple matches
+        saveFocus();
+        setShowSelectionModal(true);
+      }
+    } catch (error: any) {
+      console.error('Erro na busca de conferência:', error);
+      setSearchError(error.message || 'Erro interno na busca');
+    } finally {
+      setIsSearching(false);
+    }
+  }, [
+    dashboardFilters.conferenceValue,
+    dashboardFilters.selectedDate,
+    setSearchError,
+    setSearchMatches,
+    setConferredItems,
+    setDashboardFilters,
+    setSearchSuccess,
+    saveFocus,
+    setShowSelectionModal,
+    setIsSearching
+  ]);
+
+  const handleConfirmAction = useCallback(() => {
+    // Determine current context and perform appropriate action
+    if (showSelectionModal && searchMatches.length > 0) {
+      // If modal is open, select first match
+      const firstMatch = searchMatches[0];
+      if (firstMatch) {
+        saveFocus();
+        setShowSelectionModal(false);
+        const conferredItem = {
+          ...firstMatch,
+          conferredAt: new Date(),
+          conferredId: `conf-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        };
+        setConferredItems(prev => [conferredItem, ...prev]);
+        setDashboardFilters(prev => ({ ...prev, conferenceValue: '' }));
+        setSearchMatches([]);
+        setSearchSuccess('Valor conferido com sucesso!');
+        setTimeout(() => setSearchSuccess(null), 3000);
+        restoreFocus();
+      }
+    } else if (dashboardFilters.conferenceValue && !showSelectionModal) {
+      // If typing in conference field, trigger search
+      handleConferenceCheck();
+    }
+  }, [showSelectionModal, searchMatches, dashboardFilters.conferenceValue, saveFocus, restoreFocus, setConferredItems, setDashboardFilters, handleConferenceCheck]);
+
+  const openDateFilter = useCallback(() => {
+    const dateInput = getFocusTarget('dateFilter');
+    if (dateInput) {
+      dateInput.focus();
+    } else {
+      // If date input not available, focus on the closest date-related element
+      focusTarget('dateFilter');
+    }
+  }, [getFocusTarget, focusTarget]);
+
+  // Register focus targets for keyboard shortcuts
+  useEffect(() => {
+    registerFocusTarget('conferenceValue', conferenceValueRef.current);
+    registerFocusTarget('dateFilter', dateFilterRef.current);
+  }, [registerFocusTarget]);
+
+  // Global keyboard shortcuts
+  useGlobalKeyboardShortcuts(
+    {
+      valueInput: getFocusTarget('valueInput'),
+      conferenceValue: getFocusTarget('conferenceValue'),
+      dateFilter: getFocusTarget('dateFilter')
+    },
+    {
+      openDateFilter,
+      closeModals,
+      confirmAction: handleConfirmAction
+    }
+  );
+
   // Debounce the conference value for preview
   const debouncedConferenceValue = useDebounce(dashboardFilters.conferenceValue, 300);
 
@@ -107,7 +273,12 @@ export const Dashboard: React.FC = () => {
     if (debouncedConferenceValue && parseResult?.data && valueIndex) {
       const validation = validateValueInput(debouncedConferenceValue);
       if (validation.isValid) {
-        const result = searchValueMatches(debouncedConferenceValue, parseResult.data, valueIndex);
+        const result = performanceLogger.measureSync('conference_search', () => {
+          return searchValueMatches(debouncedConferenceValue, parseResult.data, valueIndex);
+        }, {
+          valueSearched: debouncedConferenceValue,
+          dataSize: parseResult.data.length
+        });
         setPreviewResults(result.matches.length);
       } else {
         setPreviewResults(null);
@@ -144,52 +315,91 @@ export const Dashboard: React.FC = () => {
       return;
     }
 
-    console.log('Starting file processing...');
-    setIsLoading(true);
+    console.log('Starting file processing with Web Worker...');
+    processingState.startProcessing('parsing');
     setError(null);
 
     try {
       const startTime = Date.now();
-      console.log('Calling parseExcelFile...');
-      const result = await parseExcelFile(selectedFile);
-      console.log('parseExcelFile result:', result);
+
+      // Process file in Web Worker
+      processingState.updateStage('parsing', 'Lendo planilha...');
+      const processedData = await processExcelFile(
+        selectedFile,
+        operationDate,
+        (progress) => processingState.updateProgress(progress)
+      );
+
       const processingTime = Date.now() - startTime;
 
-      if (result.success) {
-        setParseResult(result);
+      if (processedData.parseResult.success) {
+        processingState.updateStage('indexing', 'Criando índices de busca...');
 
-        // Create value index for optimized search
-        const index = createValueIndex(result.data);
+        setParseResult(processedData.parseResult);
+
+        // Convert Map to the format expected by the existing code
+        const index = new Map<number, ValueMatch[]>();
+        processedData.valueCentsMap.forEach((ids, valueCents) => {
+          const matches: ValueMatch[] = ids.map(id => {
+            const entry = processedData.normalizedEntries[id];
+            return {
+              id: entry.id.toString(),
+              date: entry.date || '',
+              paymentType: entry.transaction_type || 'OUTROS',
+              cpf: entry.document_number || '',
+              value: entry.value,
+              originalHistory: entry.description || '',
+              validationStatus: 'valid' as const,
+              bankData: {
+                date: entry.date,
+                description: entry.description,
+                value: entry.value,
+                documentNumber: entry.document_number,
+                transactionType: entry.transaction_type
+              }
+            };
+          });
+          index.set(valueCents, matches);
+        });
+
         setValueIndex(index);
         console.log(`Índice criado com ${index.size} valores únicos`);
 
-        console.log(`Arquivo processado em ${processingTime}ms`);
-        console.log(`Linhas processadas: ${result.stats.totalRows}`);
-        console.log(`Linhas válidas: ${result.stats.validRows}`);
-        console.log(`Avisos: ${result.warnings.length}`);
+        processingState.updateStage('saving', 'Salvando no banco de dados...');
 
-        // Save to database
+        // Save to database using the parsed data
         try {
-          await ConferenceHistoryService.saveBankingUpload(
-            result.data,
+          await StorageAdapter.saveBankingUpload(
+            processedData.parseResult.data,
             selectedFile.name,
             operationDate,
             uploadMode
           );
           console.log('Data saved to database successfully');
+          toast.success(`Arquivo processado com sucesso em ${processingTime}ms`);
         } catch (dbError) {
           console.error('Error saving to database:', dbError);
+          toast.error('Erro ao salvar no banco de dados');
           // Don't fail the entire operation if DB save fails
         }
+
+        console.log(`Arquivo processado em ${processingTime}ms`);
+        console.log(`Linhas processadas: ${processedData.parseResult.stats.totalRows}`);
+        console.log(`Linhas válidas: ${processedData.parseResult.stats.validRows}`);
+        console.log(`Avisos: ${processedData.parseResult.warnings.length}`);
       } else {
-        setError(result.errors.join('\n'));
+        setError(processedData.parseResult.errors.join('\n'));
         setParseResult(null);
+        toast.error('Erro no processamento da planilha');
       }
     } catch (err) {
-      setError(`Erro ao processar arquivo: ${err instanceof Error ? err.message : 'Erro desconhecido'}`);
+      console.error('Error processing file:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Erro ao processar arquivo';
+      setError(errorMessage);
       setParseResult(null);
+      toast.error(errorMessage);
     } finally {
-      setIsLoading(false);
+      processingState.stopProcessing();
     }
   };
 
@@ -315,99 +525,6 @@ export const Dashboard: React.FC = () => {
     setShowRestartModal(false);
   };
 
-  // Conference value search and transfer logic
-  const handleConferenceCheck = useCallback(async () => {
-    if (!parseResult || !parseResult.data) {
-      setSearchError('Carregue uma planilha para usar esta função.');
-      return;
-    }
-
-    const validation = validateValueInput(dashboardFilters.conferenceValue);
-    if (!validation.isValid) {
-      setSearchError(validation.error || 'Valor inválido');
-      return;
-    }
-
-    setIsSearching(true);
-    setSearchError(null);
-    setSearchSuccess(null);
-
-    try {
-      const searchResult = searchValueMatches(dashboardFilters.conferenceValue, parseResult.data, valueIndex || undefined);
-      
-      if (!searchResult.hasMatches) {
-        // Parse and format value as Brazilian currency
-        const numericValue = parseFloat(dashboardFilters.conferenceValue.replace(',', '.').replace(/[^\d.-]/g, ''));
-        const formattedValue = new Intl.NumberFormat('pt-BR', {
-          style: 'currency',
-          currency: 'BRL',
-        }).format(isNaN(numericValue) ? 0 : numericValue);
-        
-        // Save to not found history with formatted value
-        const notFoundEntry = {
-          value: formattedValue,
-          timestamp: new Date(),
-          status: 'not_found' as const
-        };
-        setNotFoundHistory(prev => [notFoundEntry, ...prev]);
-
-        // Save to database
-        try {
-          await ConferenceHistoryService.saveNotFound(
-            dashboardFilters.conferenceValue,
-            operationDate
-          );
-        } catch (dbError) {
-          console.error('Error saving not found to database:', dbError);
-        }
-
-        // Show error message
-        setSearchError('Valor não encontrado nos dados carregados.');
-        
-        // Show success toast for saving to history
-        setSearchSuccess('Valor salvo no histórico de não encontrados.');
-        setTimeout(() => setSearchSuccess(null), 3000);
-        
-        // Clear input and focus
-        setConferenceValue('');
-        setTimeout(() => {
-          const input = document.querySelector('input[placeholder*="Digite o valor"]') as HTMLInputElement;
-          if (input) {
-            input.focus();
-            input.select();
-          }
-        }, 100);
-        
-        setIsSearching(false);
-        return;
-      }
-
-      // Filter out already conferred items
-      const availableMatches = searchResult.matches.filter(match => 
-        !conferredItems.some(conferred => conferred.id === match.id)
-      );
-
-      if (availableMatches.length === 0) {
-        setSearchError('Este valor já foi conferido.');
-        setIsSearching(false);
-        return;
-      }
-
-      if (availableMatches.length === 1) {
-        // Single match - transfer automatically
-        await transferToConference(availableMatches[0]);
-      } else {
-        // Multiple matches - show selection modal
-        setSearchMatches(availableMatches);
-        setShowSelectionModal(true);
-      }
-    } catch (error) {
-      setSearchError('Erro ao buscar valor. Tente novamente.');
-    } finally {
-      setIsSearching(false);
-    }
-  }, [dashboardFilters.conferenceValue, parseResult, conferredItems, operationDate]);
-
   const transferToConference = useCallback(async (match: ValueMatch) => {
     const conferredId = `conf-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const conferredItem = {
@@ -422,9 +539,12 @@ export const Dashboard: React.FC = () => {
     // Mark as transferred to remove from banking table
     setTransferredIds(prev => new Set([...prev, match.id]));
 
+    // Update lookup map incrementally
+    valueLookup.updateEntryStatus(match.id, match.value, 'conferred');
+
     // Save to database
     try {
-      await ConferenceHistoryService.saveCashConference(
+      await StorageAdapter.saveCashConference(
         match,
         operationDate,
         'conferred'
@@ -473,11 +593,14 @@ export const Dashboard: React.FC = () => {
         newSet.delete(itemToRemove.id);
         return newSet;
       });
+
+      // Update lookup map incrementally - mark as available again
+      valueLookup.updateEntryStatus(itemToRemove.id, itemToRemove.value, 'pending');
     }
-  }, [conferredItems]);
+  }, [conferredItems, valueLookup]);
 
   // Clear messages when switching tabs or changing values
-  const handleTabChange = (tab: 'banking' | 'cash' | 'launches') => {
+  const handleTabChange = (tab: 'banking' | 'cash' | 'launches' | 'actions' | 'backup') => {
     setActiveTab(tab);
     setSearchError(null);
     setSearchSuccess(null);
@@ -498,6 +621,9 @@ export const Dashboard: React.FC = () => {
     if (launchItem.remove) {
       // Remove from conferredItems if it exists
       setConferredItems(prev => prev.filter(item => item.conferredId !== launchItem.conferredId));
+
+      // Remove from lookup map
+      valueLookup.removeEntry(launchItem.id, launchItem.value);
     } else {
       // Add to conferredItems
       const newConferredItem = {
@@ -513,8 +639,23 @@ export const Dashboard: React.FC = () => {
       };
 
       setConferredItems(prev => [...prev, newConferredItem]);
+
+      // Add to lookup map if it's a new manual entry
+      if (launchItem.source === 'manual_entry') {
+        const mockHistoryEntry: ConferenceHistoryEntry = {
+          id: launchItem.id,
+          operation_date: launchItem.date,
+          operation_type: 'manual_entry',
+          value: launchItem.value,
+          description: launchItem.description,
+          status: 'active',
+          source: 'manual_entry',
+          user_id: 'default_user'
+        };
+        valueLookup.addEntry(mockHistoryEntry);
+      }
     }
-  }, []);
+  }, [valueLookup]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 to-black">
@@ -600,6 +741,26 @@ export const Dashboard: React.FC = () => {
                 </span>
               )}
             </button>
+            <button
+              onClick={() => handleTabChange('actions')}
+              className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+                activeTab === 'actions'
+                  ? 'bg-gray-800 text-gray-100 border-b-2 border-purple-500'
+                  : 'text-gray-400 hover:text-gray-100 hover:bg-gray-800/50'
+              }`}
+            >
+              📝 Ações
+            </button>
+            <button
+              onClick={() => handleTabChange('backup')}
+              className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+                activeTab === 'backup'
+                  ? 'bg-gray-800 text-gray-100 border-b-2 border-blue-500'
+                  : 'text-gray-400 hover:text-gray-100 hover:bg-gray-800/50'
+              }`}
+            >
+              💾 Backup
+            </button>
           </div>
         </div>
       </header>
@@ -648,10 +809,10 @@ export const Dashboard: React.FC = () => {
                 <div className="flex space-x-2">
                   <button
                     onClick={handleLoadFile}
-                    disabled={!selectedFile || isLoading}
+                    disabled={!selectedFile || processingState.isProcessing}
                     className="flex-1 px-3 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
-                    {isLoading ? 'Processando...' : 'Carregar'}
+                    {processingState.isProcessing ? 'Processando...' : 'Carregar'}
                   </button>
                   <button
                     onClick={handleClearFile}
@@ -681,13 +842,20 @@ export const Dashboard: React.FC = () => {
               <div className="space-y-2">
                 <div className="relative">
                   <input
+                    ref={conferenceValueRef}
+                    id="conference-value-input"
                     type="text"
                     placeholder="Digite o valor (ex: 123,45)"
                     value={dashboardFilters.conferenceValue}
                     onChange={(e) => handleConferenceValueChange(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && !isSearching && handleConferenceCheck()}
                     disabled={!parseResult || isSearching}
-                    className="w-full px-3 py-2 pr-20 text-sm text-gray-100 bg-gray-700 border border-gray-600 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                    {...useFieldValidation('conference-value-input', searchError)}
+                    className={`w-full px-3 py-2 pr-20 text-sm text-gray-100 bg-gray-700 border rounded-md focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                      searchError
+                        ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
+                        : 'border-gray-600 focus:ring-indigo-500 focus:border-indigo-500'
+                    }`}
                   />
                   {previewResults !== null && (
                     <div className="absolute right-2 top-1/2 -translate-y-1/2">
@@ -704,6 +872,9 @@ export const Dashboard: React.FC = () => {
                     </div>
                   )}
                 </div>
+
+                <ValidationError error={searchError} fieldId="conference-value-input" />
+
                 <button
                   onClick={handleConferenceCheck}
                   disabled={!parseResult || isSearching || !dashboardFilters.conferenceValue.trim()}
@@ -838,13 +1009,18 @@ export const Dashboard: React.FC = () => {
                   setActiveTab('cash');
                 }
               }}
+              onLookupMapBuilt={(entries) => {
+                console.log(`Building lookup map for ${entries.length} entries...`);
+                valueLookup.updateLookupMap(entries);
+                console.log('Lookup map updated:', valueLookup.stats);
+              }}
             />
               </div>
             </aside>
 
             {/* Banking Conference Main Content Area */}
             <main className="flex-1 bg-gray-950 p-6 min-h-[calc(100vh-8rem)] min-w-0">
-              {isLoading ? (
+              {processingState.isProcessing ? (
                 <div className="bg-gray-800 rounded-lg shadow-2xl border border-gray-700 min-h-full p-8 flex items-center justify-center">
                   <div className="text-center">
                     <svg className="animate-spin h-12 w-12 text-indigo-500 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -904,7 +1080,20 @@ export const Dashboard: React.FC = () => {
                       </div>
                     </div>
                   )}
-                  <DataTable data={parseResult.data} stats={parseResult.stats} transferredIds={transferredIds} />
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <h3 className="text-lg font-medium text-gray-200">Dados Bancários</h3>
+                      <ExportButtons
+                        data={{
+                          banking: parseResult?.data?.filter(item => !transferredIds.has(item.id)) || []
+                        }}
+                        prefix="bancario"
+                        date={operationDate}
+                        disabled={!parseResult?.data?.length}
+                      />
+                    </div>
+                    <VirtualizedDataTable parseResult={parseResult} transferredIds={transferredIds} />
+                  </div>
                 </div>
               ) : (
                 <div className="bg-gray-800 rounded-lg shadow-2xl border border-gray-700 min-h-full p-8">
@@ -935,6 +1124,12 @@ export const Dashboard: React.FC = () => {
               )}
             </main>
           </>
+        ) : activeTab === 'actions' ? (
+          /* Action Log Layout */
+          <ActionLogPanel className="flex-1" />
+        ) : activeTab === 'backup' ? (
+          /* Backup Layout */
+          <BackupPanel className="flex-1" currentDate={operationDate} />
         ) : (
           /* Cash Conference Layout */
           <>
@@ -952,6 +1147,7 @@ export const Dashboard: React.FC = () => {
                     <div>
                       <label className="block text-xs text-gray-400 mb-1">Data específica</label>
                       <input
+                        ref={dateFilterRef}
                         type="date"
                         value={dashboardFilters.selectedDate}
                         onChange={(e) => setDashboardFilters(prev => ({ ...prev, selectedDate: e.target.value }))}
@@ -1034,10 +1230,23 @@ export const Dashboard: React.FC = () => {
                     </div>
                   </div>
                 )}
-                <CashConferenceTable
-                  conferredItems={isShowingFiltered ? filteredConferredItems : conferredItems}
-                  onRemoveItem={handleRemoveConferredItem}
-                />
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-lg font-medium text-gray-200">Conferência de Caixa</h3>
+                    <ExportButtons
+                      data={{
+                        cash: isShowingFiltered ? filteredConferredItems : conferredItems
+                      }}
+                      prefix="caixa"
+                      date={operationDate}
+                      disabled={(isShowingFiltered ? filteredConferredItems : conferredItems).length === 0}
+                    />
+                  </div>
+                  <VirtualizedCashTable
+                    conferredItems={isShowingFiltered ? filteredConferredItems : conferredItems}
+                    onRemoveItem={handleRemoveConferredItem}
+                  />
+                </div>
               </div>
             </main>
           </>
@@ -1089,6 +1298,25 @@ export const Dashboard: React.FC = () => {
           </div>
         </div>
       )}
+
+      <StorageStatus />
+
+      {/* Development Performance Panel */}
+      <DevPerformancePanel
+        isVisible={showPerformancePanel}
+        onToggle={() => setShowPerformancePanel(!showPerformancePanel)}
+      />
+
+      {/* Keyboard Shortcuts Help */}
+      <KeyboardShortcutsHelp />
+
+      {/* Processing Spinner */}
+      <ProcessingSpinner
+        show={processingState.isProcessing}
+        stage={processingState.stage}
+        progress={processingState.progress}
+        message={processingState.message}
+      />
     </div>
   );
 };

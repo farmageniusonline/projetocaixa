@@ -1,15 +1,20 @@
 import React, { useState } from 'react';
-import { ConferenceHistoryService, ConferenceHistoryEntry, DailyOperationsSummary } from '../services/conferenceHistory';
+import StorageAdapter from '../lib/storageAdapter';
+import { ConferenceHistoryEntry, DailyOperationsSummary } from '../services/indexedDbService';
 import { formatToDDMMYYYY, formatForDateInput, formatDateTimeForDisplay } from '../utils/dateFormatter';
+import { VirtualizedHistoryTable } from './VirtualizedHistoryTable';
+import { ExportButtons } from './ExportButtons';
 
 interface HistoryByDateProps {
   className?: string;
   onDataLoaded?: (data: ConferenceHistoryEntry[]) => void;
+  onLookupMapBuilt?: (entries: ConferenceHistoryEntry[]) => void;
 }
 
 export const HistoryByDate: React.FC<HistoryByDateProps> = ({
   className = '',
-  onDataLoaded
+  onDataLoaded,
+  onLookupMapBuilt
 }) => {
   const [selectedDate, setSelectedDate] = useState<string>(
     formatForDateInput(new Date())
@@ -30,8 +35,8 @@ export const HistoryByDate: React.FC<HistoryByDateProps> = ({
       if (dateRange === 'day') {
         // Load single day data - convert to DD-MM-YYYY format
         const formattedDate = formatToDDMMYYYY(selectedDate);
-        data = await ConferenceHistoryService.getHistoryByDate(formattedDate);
-        const summary = await ConferenceHistoryService.getDailySummary(formattedDate);
+        data = await StorageAdapter.getHistoryByDate(formattedDate);
+        const summary = await StorageAdapter.getDailySummary(formattedDate);
         setDailySummary(summary);
       } else {
         // Calculate date range
@@ -44,7 +49,7 @@ export const HistoryByDate: React.FC<HistoryByDateProps> = ({
           startDate.setMonth(startDate.getMonth() - 1);
         }
 
-        data = await ConferenceHistoryService.getHistoryByDateRange(
+        data = await StorageAdapter.getHistoryByDateRange(
           formatToDDMMYYYY(startDate),
           formatToDDMMYYYY(endDate)
         );
@@ -55,6 +60,11 @@ export const HistoryByDate: React.FC<HistoryByDateProps> = ({
 
       if (onDataLoaded) {
         onDataLoaded(data);
+      }
+
+      // Build lookup map for O(1) value searches
+      if (data.length > 0) {
+        onLookupMapBuilt?.(data);
       }
 
       if (data.length === 0) {
@@ -230,61 +240,22 @@ export const HistoryByDate: React.FC<HistoryByDateProps> = ({
           </div>
         )}
 
-        {/* History Data Display */}
+        {/* Virtualized History Table */}
         {historyData.length > 0 && (
-          <div className="space-y-3 max-h-96 overflow-y-auto">
-            {Object.entries(groupHistoryByType()).map(([type, entries]) => {
-              if (entries.length === 0) return null;
-
-              return (
-                <div key={type} className="bg-gray-900 rounded p-3 border border-gray-600">
-                  <h4 className="text-xs font-medium text-gray-300 mb-2">
-                    {getOperationTypeLabel(type)} ({entries.length})
-                  </h4>
-                  <div className="space-y-2">
-                    {entries.slice(0, 5).map((entry) => (
-                      <div
-                        key={entry.id}
-                        className="bg-gray-800 rounded p-2 border border-gray-700"
-                      >
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            {entry.document_number && (
-                              <div className="text-xs text-gray-400">
-                                Doc: {entry.document_number}
-                              </div>
-                            )}
-                            {entry.description && (
-                              <div className="text-xs text-gray-300 truncate">
-                                {entry.description}
-                              </div>
-                            )}
-                            {entry.value && (
-                              <div className="text-xs font-medium text-indigo-400">
-                                {formatCurrency(entry.value)}
-                              </div>
-                            )}
-                          </div>
-                          <div className="ml-2">
-                            {getStatusBadge(entry.status)}
-                          </div>
-                        </div>
-                        {entry.operation_timestamp && (
-                          <div className="text-xs text-gray-500 mt-1">
-                            {formatDateTimeForDisplay(entry.operation_timestamp)}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                    {entries.length > 5 && (
-                      <div className="text-xs text-gray-400 text-center">
-                        ... e mais {entries.length - 5} registros
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <h4 className="text-sm font-medium text-gray-200">Dados do Histórico</h4>
+              <ExportButtons
+                data={{ history: historyData }}
+                prefix="historico"
+                date={formatToDDMMYYYY(selectedDate)}
+                disabled={historyData.length === 0}
+              />
+            </div>
+            <VirtualizedHistoryTable
+              historyData={historyData}
+              onExport={() => {}}
+            />
           </div>
         )}
 

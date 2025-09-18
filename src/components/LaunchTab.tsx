@@ -1,6 +1,10 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { formatForDisplay } from '../utils/dateFormatter';
 import { useDashboardFilters } from '../hooks/usePersistentState';
+import { ExportButtons } from './ExportButtons';
+import { formSchemas, safeValidate } from '../utils/validationSchemas';
+import { ValidationError, useFieldValidation } from './ValidationError';
+import { useKeyboardShortcuts, useFocusRestore } from '../hooks/useKeyboardShortcuts';
 
 type PaymentMethod =
   | 'credit_1x'
@@ -117,6 +121,7 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
   const [launchToUndo, setLaunchToUndo] = useState<Launch | null>(null);
 
   const valueInputRef = useRef<HTMLInputElement>(null);
+  const { saveFocus, restoreFocus } = useFocusRestore();
 
   // Define getFilterDate early to avoid initialization errors
   const getFilterDate = useCallback(() => {
@@ -160,7 +165,18 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
   const handleValueChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const input = e.target.value;
     setValue(input);
-    setError(null);
+
+    // Real-time validation using Zod
+    if (input.trim()) {
+      const validation = safeValidate(formSchemas.conferenceValue, { value: input });
+      if (!validation.success) {
+        setError(validation.error);
+      } else {
+        setError(null);
+      }
+    } else {
+      setError(null);
+    }
   };
 
   const handleAddLaunch = useCallback(() => {
@@ -177,11 +193,14 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
       return;
     }
 
-    const numericValue = parseFloat(value.replace(',', '.').replace(/[^\d.-]/g, ''));
-    if (isNaN(numericValue) || numericValue <= 0) {
-      setError('Digite um valor válido maior que zero');
+    // Validate value using Zod
+    const valueValidation = safeValidate(formSchemas.conferenceValue, { value });
+    if (!valueValidation.success) {
+      setError(valueValidation.error);
       return;
     }
+
+    const numericValue = valueValidation.data.value;
 
     const paymentTypeLabel = paymentMethods.find(m => m.id === selectedMethod)?.label || '';
     const linkStatus = selectedMethod.startsWith('credit') && isLink !== null
@@ -382,6 +401,32 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
     credit5x: filteredLaunches.reduce((sum, item) => sum + (item.credit5x || 0), 0),
   };
 
+  // LaunchTab-specific keyboard shortcuts
+  const launchShortcuts = [
+    {
+      key: 'l',
+      ctrlKey: true,
+      action: () => {
+        if (valueInputRef.current) {
+          valueInputRef.current.focus();
+          valueInputRef.current.select();
+        }
+      },
+      description: 'Focar no campo de valor (Ctrl+L)'
+    },
+    {
+      key: 'Escape',
+      action: () => {
+        if (showUndoModal) {
+          handleCancelUndo();
+        }
+      },
+      description: 'Fechar modal de desfazer (Esc)'
+    }
+  ];
+
+  useKeyboardShortcuts(launchShortcuts, true);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Enter' && valueInputRef.current === document.activeElement) {
@@ -479,14 +524,21 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
             </h3>
             <div className="space-y-2">
               <input
+                id="launch-value-input"
                 ref={valueInputRef}
                 type="text"
                 placeholder="Digite o valor (ex: 123,45)"
                 value={value}
                 onChange={handleValueChange}
-                className="w-full px-3 py-2 text-sm text-gray-100 bg-gray-700 border border-gray-600 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                {...useFieldValidation('launch-value-input', error)}
+                className={`w-full px-3 py-2 text-sm text-gray-100 bg-gray-700 border rounded-md focus:ring-2 ${
+                  error
+                    ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
+                    : 'border-gray-600 focus:ring-indigo-500 focus:border-indigo-500'
+                }`}
                 aria-label="Valor do lançamento"
               />
+              <ValidationError error={error} fieldId="launch-value-input" />
               <button
                 onClick={handleAddLaunch}
                 disabled={!selectedMethod || !value}
@@ -496,13 +548,7 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
               </button>
             </div>
 
-            {/* Messages */}
-            {error && (
-              <div className="mt-2 p-2 bg-red-900/20 border border-red-400 rounded-md">
-                <p className="text-xs text-red-400">{error}</p>
-              </div>
-            )}
-
+            {/* Success Message */}
             {success && (
               <div className="mt-2 p-2 bg-green-900/20 border border-green-400 rounded-md">
                 <p className="text-xs text-green-400">{success}</p>
@@ -591,10 +637,31 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
       <main className="flex-1 bg-gray-950 p-6 min-h-[calc(100vh-8rem)] min-w-0">
         <div className="bg-gray-800 rounded-lg shadow-2xl border border-gray-700 h-full flex flex-col">
           <div className="p-4 border-b border-gray-700">
-            <h2 className="text-lg font-semibold text-gray-100">Lançamentos Manuais</h2>
-            <p className="text-sm text-gray-400 mt-1">
-              {filteredLaunches.length} lançamento(s) para {formatForDisplay(filterDate)}
-            </p>
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-100">Lançamentos Manuais</h2>
+                <p className="text-sm text-gray-400 mt-1">
+                  {filteredLaunches.length} lançamento(s) para {formatForDisplay(filterDate)}
+                </p>
+              </div>
+              <ExportButtons
+                data={{
+                  manual: filteredLaunches.map(launch => ({
+                    day: operationDate,
+                    document_number: '',
+                    description: `${launch.paymentType} - Lançamento manual`,
+                    value: launch.value,
+                    entry_type: launch.value >= 0 ? 'income' : 'expense',
+                    category: launch.paymentType,
+                    status: 'active',
+                    source_id: `manual_${launch.id}`
+                  }))
+                }}
+                prefix="lancamentos"
+                date={operationDate}
+                disabled={filteredLaunches.length === 0}
+              />
+            </div>
           </div>
 
           {/* Payment Type Filter Block */}

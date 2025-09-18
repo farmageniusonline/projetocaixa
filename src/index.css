@@ -1,3 +1,65 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Custom scrollbar for dark theme */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #374151 #1f2937;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #1f2937;
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #374151;
+  border-radius: 4px;
+  border: 1px solid #1f2937;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #4b5563;
+}
+
+.custom-scrollbar::-webkit-scrollbar-corner {
+  background: #1f2937;
+}
+
+/* Gray-850 utility for better gradients */
+.bg-gray-850 {
+  background-color: #1e293b;
+}
+
+.bg-gray-750 {
+  background-color: #334155;
+}
+
+/* Virtualization optimizations */
+.react-window-list {
+  overflow-x: hidden !important;
+}
+
+/* Improve text rendering for performance */
+* {
+  font-feature-settings: 'liga' off;
+  text-rendering: optimizeSpeed;
+}
+
+/* Optimize animations for virtualized lists */
+@media (prefers-reduced-motion: no-preference) {
+  .virtualized-row {
+    transition: background-color 0.1s ease-out;
+  }
+}
+
+/* Ensure consistent font metrics */
+body, input, select, textarea, button {
+  font-variant-numeric: tabular-nums;
+}

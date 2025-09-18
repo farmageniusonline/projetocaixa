@@ -58,31 +58,50 @@ export class ConferenceHistoryService {
   ): Promise<void> {
     const userId = await getCurrentUserId();
 
-    const entries: ConferenceHistoryEntry[] = data.map(item => ({
-      operation_date: operationDate, // operationDate já deve estar em DD-MM-YYYY
-      operation_type: 'banking_upload',
-      document_number: item.documentNumber,
-      date: item.date,
-      description: item.description,
-      value: item.value,
-      bank_name: item.bankName,
-      account_number: item.accountNumber,
-      transaction_type: item.transactionType,
-      balance: item.balance,
-      file_name: fileName,
-      file_upload_date: operationDate,
-      upload_mode: uploadMode,
-      status: 'pending',
+    // Convert DD-MM-YYYY to YYYY-MM-DD for database
+    const [day, month, year] = operationDate.split('-');
+    const dbDate = `${year}-${month}-${day}`;
+
+    // First, create banking file entry
+    const { data: fileData, error: fileError } = await db
+      .from('banking_files')
+      .insert({
+        user_id: userId,
+        file_name: fileName,
+        operation_date: dbDate,
+        total_transactions: data.length,
+        total_value: data.reduce((sum, item) => sum + (item.value || 0), 0),
+        status: 'uploaded',
+        metadata: { upload_mode: uploadMode }
+      })
+      .select('id')
+      .single();
+
+    if (fileError) {
+      console.error('Error creating banking file:', fileError);
+      throw fileError;
+    }
+
+    // Then, insert transactions
+    const transactions = data.map((item, index) => ({
+      file_id: fileData.id,
       user_id: userId,
-      metadata: item
+      transaction_date: dbDate,
+      payment_type: item.paymentType || item.transactionType,
+      cpf: item.cpf?.replace(/[^0-9]/g, ''),
+      value: item.value,
+      original_history: item.originalHistory || item.description,
+      status: 'pending',
+      row_index: index,
+      original_data: item
     }));
 
     const { error } = await db
-      .from('conference_history')
-      .insert(entries);
+      .from('banking_transactions')
+      .insert(transactions);
 
     if (error) {
-      console.error('Error saving banking upload:', error);
+      console.error('Error saving banking transactions:', error);
       throw error;
     }
   }
@@ -95,21 +114,29 @@ export class ConferenceHistoryService {
   ): Promise<void> {
     const userId = await getCurrentUserId();
 
-    const entry: ConferenceHistoryEntry = {
-      operation_date: operationDate, // operationDate já deve estar em DD-MM-YYYY
-      operation_type: 'cash_conference',
-      document_number: item.documentNumber,
-      description: item.description,
-      value: item.value,
-      conferred_at: new Date().toISOString(),
-      conferred_by: userId,
-      status: status,
+    // Convert DD-MM-YYYY to YYYY-MM-DD for database
+    const [day, month, year] = operationDate.split('-');
+    const dbDate = `${year}-${month}-${day}`;
+
+    const entry = {
       user_id: userId,
-      metadata: item
+      transaction_id: item.transactionId || null,
+      conferred_value: item.value,
+      conference_date: dbDate,
+      transaction_date: item.date ? (() => {
+        const [d, m, y] = item.date.split('-');
+        return `${y}-${m}-${d}`;
+      })() : dbDate,
+      payment_type: item.paymentType,
+      cpf: item.cpf?.replace(/[^0-9]/g, ''),
+      original_value: item.originalValue || item.value,
+      original_history: item.description,
+      conference_status: status === 'conferred' ? 'active' : 'cancelled',
+      notes: status === 'not_found' ? 'Value not found' : null
     };
 
     const { error } = await db
-      .from('conference_history')
+      .from('cash_conference')
       .insert(entry);
 
     if (error) {
@@ -127,17 +154,16 @@ export class ConferenceHistoryService {
 
     const numericValue = parseFloat(value.replace(',', '.').replace(/[^\d.-]/g, ''));
 
-    const entry: ConferenceHistoryEntry = {
-      operation_date: operationDate, // operationDate já deve estar em DD-MM-YYYY
-      operation_type: 'not_found',
-      value: isNaN(numericValue) ? 0 : numericValue,
-      status: 'not_found',
+    const entry = {
       user_id: userId,
-      metadata: { originalValue: value }
+      searched_value: value,
+      normalized_value: isNaN(numericValue) ? 0 : numericValue,
+      status: 'not_found',
+      notes: `Date: ${operationDate}`
     };
 
     const { error } = await db
-      .from('conference_history')
+      .from('not_found_history')
       .insert(entry);
 
     if (error) {
@@ -150,37 +176,160 @@ export class ConferenceHistoryService {
   static async getHistoryByDate(date: string): Promise<ConferenceHistoryEntry[]> {
     const userId = await getCurrentUserId();
 
-    const { data, error } = await db
-      .from('conference_history')
-      .select('*')
-      .eq('operation_date', date)
-      .eq('user_id', userId)
-      .order('operation_timestamp', { ascending: false });
+    // Convert DD-MM-YYYY to YYYY-MM-DD for database
+    const [day, month, year] = date.split('-');
+    const dbDate = `${year}-${month}-${day}`;
 
-    if (error) {
-      console.error('Error fetching history:', error);
-      throw error;
+    const results: ConferenceHistoryEntry[] = [];
+
+    // Get banking transactions
+    const { data: transactions, error: transError } = await db
+      .from('banking_transactions')
+      .select(`
+        *,
+        banking_files!inner(file_name, upload_date)
+      `)
+      .eq('user_id', userId)
+      .eq('transaction_date', dbDate)
+      .order('created_at', { ascending: false });
+
+    if (transError) {
+      console.error('Error fetching transactions:', transError);
+      throw transError;
     }
 
-    return data || [];
+    // Convert transactions to ConferenceHistoryEntry format
+    if (transactions) {
+      transactions.forEach((trans: any) => {
+        results.push({
+          id: trans.id,
+          operation_date: date,
+          operation_type: 'banking_upload',
+          document_number: trans.original_data?.documentNumber,
+          date: trans.transaction_date,
+          description: trans.original_history,
+          value: trans.value,
+          status: trans.status,
+          file_name: trans.banking_files?.file_name,
+          user_id: trans.user_id,
+          metadata: trans.original_data
+        });
+      });
+    }
+
+    // Get cash conferences
+    const { data: conferences, error: confError } = await db
+      .from('cash_conference')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('conference_date', dbDate)
+      .order('created_at', { ascending: false });
+
+    if (confError) {
+      console.error('Error fetching conferences:', confError);
+      throw confError;
+    }
+
+    // Convert conferences to ConferenceHistoryEntry format
+    if (conferences) {
+      conferences.forEach((conf: any) => {
+        results.push({
+          id: conf.id,
+          operation_date: date,
+          operation_type: 'cash_conference',
+          description: conf.original_history,
+          value: conf.conferred_value,
+          status: conf.conference_status === 'active' ? 'conferred' : 'not_found',
+          conferred_at: conf.created_at,
+          user_id: conf.user_id
+        });
+      });
+    }
+
+    // Get not found values
+    const { data: notFound, error: nfError } = await db
+      .from('not_found_history')
+      .select('*')
+      .eq('user_id', userId)
+      .gte('search_timestamp', `${dbDate}T00:00:00`)
+      .lt('search_timestamp', `${dbDate}T23:59:59`)
+      .order('search_timestamp', { ascending: false });
+
+    if (nfError) {
+      console.error('Error fetching not found history:', nfError);
+      throw nfError;
+    }
+
+    // Convert not found to ConferenceHistoryEntry format
+    if (notFound) {
+      notFound.forEach((nf: any) => {
+        results.push({
+          id: nf.id,
+          operation_date: date,
+          operation_type: 'not_found',
+          value: nf.normalized_value,
+          status: 'not_found',
+          user_id: nf.user_id,
+          metadata: { originalValue: nf.searched_value }
+        });
+      });
+    }
+
+    return results.sort((a, b) =>
+      new Date(b.conferred_at || b.operation_timestamp || '').getTime() -
+      new Date(a.conferred_at || a.operation_timestamp || '').getTime()
+    );
   }
 
   // Get daily summary
   static async getDailySummary(date: string): Promise<DailyOperationsSummary | null> {
     const userId = await getCurrentUserId();
 
-    const { data, error } = await db
-      .from('daily_summary')
-      .select('*')
-      .eq('operation_date', date)
+    // Convert DD-MM-YYYY to YYYY-MM-DD for database
+    const [day, month, year] = date.split('-');
+    const dbDate = `${year}-${month}-${day}`;
+
+    // Get banking transactions summary
+    const { data: transStats } = await db
+      .from('banking_transactions')
+      .select('value, status')
+      .eq('user_id', userId)
+      .eq('transaction_date', dbDate);
+
+    // Get cash conference summary
+    const { data: confStats } = await db
+      .from('cash_conference')
+      .select('conferred_value, conference_status')
+      .eq('user_id', userId)
+      .eq('conference_date', dbDate);
+
+    // Get latest file info
+    const { data: fileInfo } = await db
+      .from('banking_files')
+      .select('file_name, upload_date')
+      .eq('user_id', userId)
+      .eq('operation_date', dbDate)
+      .order('upload_date', { ascending: false })
+      .limit(1)
       .single();
 
-    if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
-      console.error('Error fetching daily summary:', error);
-      throw error;
-    }
+    const summary: DailyOperationsSummary = {
+      operation_date: date,
+      banking_total_uploaded: transStats?.length || 0,
+      banking_total_value: transStats?.reduce((sum: number, t: any) => sum + t.value, 0) || 0,
+      banking_conferred_count: transStats?.filter((t: any) => t.status === 'conferred').length || 0,
+      banking_conferred_value: transStats?.filter((t: any) => t.status === 'conferred').reduce((sum: number, t: any) => sum + t.value, 0) || 0,
+      cash_conferred_count: confStats?.filter((c: any) => c.conference_status === 'active').length || 0,
+      cash_conferred_value: confStats?.filter((c: any) => c.conference_status === 'active').reduce((sum: number, c: any) => sum + c.conferred_value, 0) || 0,
+      cash_not_found_count: confStats?.filter((c: any) => c.conference_status === 'cancelled').length || 0,
+      last_file_name: fileInfo?.file_name,
+      last_upload_timestamp: fileInfo?.upload_date
+    };
 
-    return data;
+    summary.total_conferred = summary.banking_conferred_count + summary.cash_conferred_count;
+    summary.total_value = summary.banking_total_value + summary.cash_conferred_value;
+
+    return summary;
   }
 
   // Get date range history
@@ -190,21 +339,97 @@ export class ConferenceHistoryService {
   ): Promise<ConferenceHistoryEntry[]> {
     const userId = await getCurrentUserId();
 
-    const { data, error } = await db
-      .from('conference_history')
-      .select('*')
-      .gte('operation_date', startDate)
-      .lte('operation_date', endDate)
-      .eq('user_id', userId)
-      .order('operation_date', { ascending: false })
-      .order('operation_timestamp', { ascending: false });
+    // Convert DD-MM-YYYY to YYYY-MM-DD for database
+    const [startDay, startMonth, startYear] = startDate.split('-');
+    const [endDay, endMonth, endYear] = endDate.split('-');
+    const dbStartDate = `${startYear}-${startMonth}-${startDay}`;
+    const dbEndDate = `${endYear}-${endMonth}-${endDay}`;
 
-    if (error) {
-      console.error('Error fetching history range:', error);
-      throw error;
+    const results: ConferenceHistoryEntry[] = [];
+
+    // Get banking transactions in range
+    const { data: transactions } = await db
+      .from('banking_transactions')
+      .select('*, banking_files!inner(file_name, upload_date)')
+      .eq('user_id', userId)
+      .gte('transaction_date', dbStartDate)
+      .lte('transaction_date', dbEndDate)
+      .order('transaction_date', { ascending: false });
+
+    // Get cash conferences in range
+    const { data: conferences } = await db
+      .from('cash_conference')
+      .select('*')
+      .eq('user_id', userId)
+      .gte('conference_date', dbStartDate)
+      .lte('conference_date', dbEndDate)
+      .order('conference_date', { ascending: false });
+
+    // Get not found values in range
+    const { data: notFound } = await db
+      .from('not_found_history')
+      .select('*')
+      .eq('user_id', userId)
+      .gte('search_timestamp', `${dbStartDate}T00:00:00`)
+      .lte('search_timestamp', `${dbEndDate}T23:59:59`)
+      .order('search_timestamp', { ascending: false });
+
+    // Convert and combine all data
+    if (transactions) {
+      transactions.forEach((trans: any) => {
+        const [year, month, day] = trans.transaction_date.split('-');
+        results.push({
+          id: trans.id,
+          operation_date: `${day}-${month}-${year}`,
+          operation_type: 'banking_upload',
+          document_number: trans.original_data?.documentNumber,
+          description: trans.original_history,
+          value: trans.value,
+          status: trans.status,
+          file_name: trans.banking_files?.file_name,
+          user_id: trans.user_id,
+          metadata: trans.original_data
+        });
+      });
     }
 
-    return data || [];
+    if (conferences) {
+      conferences.forEach((conf: any) => {
+        const [year, month, day] = conf.conference_date.split('-');
+        results.push({
+          id: conf.id,
+          operation_date: `${day}-${month}-${year}`,
+          operation_type: 'cash_conference',
+          description: conf.original_history,
+          value: conf.conferred_value,
+          status: conf.conference_status === 'active' ? 'conferred' : 'not_found',
+          conferred_at: conf.created_at,
+          user_id: conf.user_id
+        });
+      });
+    }
+
+    if (notFound) {
+      notFound.forEach((nf: any) => {
+        const date = new Date(nf.search_timestamp);
+        const formattedDate = `${date.getDate().toString().padStart(2, '0')}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getFullYear()}`;
+        results.push({
+          id: nf.id,
+          operation_date: formattedDate,
+          operation_type: 'not_found',
+          value: nf.normalized_value,
+          status: 'not_found',
+          user_id: nf.user_id,
+          metadata: { originalValue: nf.searched_value }
+        });
+      });
+    }
+
+    return results.sort((a, b) => {
+      const dateA = new Date(a.operation_date.split('-').reverse().join('-'));
+      const dateB = new Date(b.operation_date.split('-').reverse().join('-'));
+      return dateB.getTime() - dateA.getTime();
+    });
   }
 
   // Update conference status
@@ -214,20 +439,31 @@ export class ConferenceHistoryService {
   ): Promise<void> {
     const userId = await getCurrentUserId();
 
-    const { error } = await db
-      .from('conference_history')
+    // Try updating banking transaction first
+    const { error: transError } = await db
+      .from('banking_transactions')
       .update({
-        status,
-        updated_at: new Date().toISOString(),
-        conferred_at: status === 'conferred' ? new Date().toISOString() : null,
-        conferred_by: status === 'conferred' ? userId : null
+        status: status,
+        updated_at: new Date().toISOString()
       })
       .eq('id', id)
       .eq('user_id', userId);
 
-    if (error) {
-      console.error('Error updating conference status:', error);
-      throw error;
+    if (!transError) return;
+
+    // If not found in transactions, try cash conference
+    const { error: confError } = await db
+      .from('cash_conference')
+      .update({
+        conference_status: status === 'conferred' ? 'active' : 'cancelled',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .eq('user_id', userId);
+
+    if (confError) {
+      console.error('Error updating conference status:', confError);
+      throw confError;
     }
   }
 
@@ -235,15 +471,34 @@ export class ConferenceHistoryService {
   static async deleteHistoryEntry(id: string): Promise<void> {
     const userId = await getCurrentUserId();
 
-    const { error } = await db
-      .from('conference_history')
+    // Try deleting from banking transactions first
+    const { error: transError } = await db
+      .from('banking_transactions')
       .delete()
       .eq('id', id)
       .eq('user_id', userId);
 
-    if (error) {
-      console.error('Error deleting history entry:', error);
-      throw error;
+    if (!transError) return;
+
+    // Try cash conference
+    const { error: confError } = await db
+      .from('cash_conference')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', userId);
+
+    if (!confError) return;
+
+    // Try not found history
+    const { error: nfError } = await db
+      .from('not_found_history')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', userId);
+
+    if (nfError) {
+      console.error('Error deleting history entry:', nfError);
+      throw nfError;
     }
   }
 
@@ -251,15 +506,37 @@ export class ConferenceHistoryService {
   static async clearDayHistory(date: string): Promise<void> {
     const userId = await getCurrentUserId();
 
-    const { error } = await db
-      .from('conference_history')
-      .delete()
-      .eq('operation_date', date)
-      .eq('user_id', userId);
+    // Convert DD-MM-YYYY to YYYY-MM-DD for database
+    const [day, month, year] = date.split('-');
+    const dbDate = `${year}-${month}-${day}`;
 
-    if (error) {
-      console.error('Error clearing day history:', error);
-      throw error;
-    }
+    // Clear banking transactions
+    await db
+      .from('banking_transactions')
+      .delete()
+      .eq('user_id', userId)
+      .eq('transaction_date', dbDate);
+
+    // Clear cash conferences
+    await db
+      .from('cash_conference')
+      .delete()
+      .eq('user_id', userId)
+      .eq('conference_date', dbDate);
+
+    // Clear not found history for the day
+    await db
+      .from('not_found_history')
+      .delete()
+      .eq('user_id', userId)
+      .gte('search_timestamp', `${dbDate}T00:00:00`)
+      .lt('search_timestamp', `${dbDate}T23:59:59`);
+
+    // Clear banking files
+    await db
+      .from('banking_files')
+      .delete()
+      .eq('user_id', userId)
+      .eq('operation_date', dbDate);
   }
 }
