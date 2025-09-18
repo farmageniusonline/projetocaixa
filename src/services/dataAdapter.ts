@@ -1,4 +1,4 @@
-import { indexedDbService } from './indexedDbService';
+import IndexedDbService from './indexedDbService';
 import { supabaseDataService } from './supabaseDataService';
 import { syncService } from './syncService';
 import { authService } from './authService';
@@ -49,7 +49,7 @@ class DataAdapter {
       );
     } else if (this.mode === 'hybrid') {
       // Save locally first
-      await indexedDbService.saveBankingUpload(data, fileName, operationDate, uploadMode);
+      await IndexedDbService.saveBankingUpload(data, fileName, operationDate, uploadMode);
       // Queue for sync
       await syncService.queueOperation('banking_file', {
         fileName,
@@ -57,7 +57,7 @@ class DataAdapter {
         operationDate: new Date(operationDate)
       });
     } else {
-      await indexedDbService.saveBankingUpload(data, fileName, operationDate, uploadMode);
+      await IndexedDbService.saveBankingUpload(data, fileName, operationDate, uploadMode);
     }
   }
 
@@ -79,7 +79,7 @@ class DataAdapter {
       }
     } else if (this.mode === 'hybrid') {
       // Save locally first
-      await indexedDbService.saveCashConference(item, operationDate, status);
+      await IndexedDbService.saveCashConference(item, operationDate, status);
       // Queue for sync
       if (status === 'conferred' && item.id) {
         await syncService.queueOperation('conference', { transactionId: item.id });
@@ -90,7 +90,7 @@ class DataAdapter {
         });
       }
     } else {
-      await indexedDbService.saveCashConference(item, operationDate, status);
+      await IndexedDbService.saveCashConference(item, operationDate, status);
     }
   }
 
@@ -103,14 +103,14 @@ class DataAdapter {
       await supabaseDataService.registerNotFound(value, numericValue);
     } else if (this.mode === 'hybrid') {
       // Save locally first
-      await indexedDbService.saveNotFound(value, operationDate);
+      await IndexedDbService.saveNotFound(value, operationDate);
       // Queue for sync
       await syncService.queueOperation('not_found', {
         searchedValue: value,
         normalizedValue: numericValue
       });
     } else {
-      await indexedDbService.saveNotFound(value, operationDate);
+      await IndexedDbService.saveNotFound(value, operationDate);
     }
   }
 
@@ -138,7 +138,7 @@ class DataAdapter {
       });
     } else if (this.mode === 'hybrid') {
       // Save locally first
-      await indexedDbService.saveManualEntry(entry, operationDate);
+      await IndexedDbService.saveManualEntry(entry, operationDate);
       // Queue for sync
       await syncService.queueOperation('manual_entry', {
         documentNumber: entry.document_number,
@@ -149,7 +149,7 @@ class DataAdapter {
         isLink: entry.isLink
       });
     } else {
-      await indexedDbService.saveManualEntry(entry, operationDate);
+      await IndexedDbService.saveManualEntry(entry, operationDate);
     }
   }
 
@@ -181,7 +181,7 @@ class DataAdapter {
         }))
       ];
     } else {
-      return await indexedDbService.getHistoryByDate(date);
+      return await IndexedDbService.getHistoryByDate(date);
     }
   }
 
@@ -198,7 +198,7 @@ class DataAdapter {
         total_conferred: Number(stats.total_conferred)
       };
     } else {
-      return await indexedDbService.getDailySummary(date);
+      return await IndexedDbService.getDailySummary(date);
     }
   }
 
@@ -206,7 +206,7 @@ class DataAdapter {
     if (this.mode === 'supabase') {
       return await supabaseDataService.searchTransactionsByValue(value, tolerance);
     } else {
-      return await indexedDbService.searchByValue(value);
+      return await IndexedDbService.searchByValue(value);
     }
   }
 
@@ -216,10 +216,10 @@ class DataAdapter {
     if (this.mode === 'supabase') {
       await supabaseDataService.restartWorkDay();
     } else if (this.mode === 'hybrid') {
-      await indexedDbService.clearDayHistory(date);
+      await IndexedDbService.clearDayHistory(date);
       await supabaseDataService.restartWorkDay();
     } else {
-      await indexedDbService.clearDayHistory(date);
+      await IndexedDbService.clearDayHistory(date);
     }
   }
 
@@ -257,7 +257,7 @@ class DataAdapter {
     if (this.mode === 'supabase') {
       await supabaseDataService.deleteManualEntry(sourceId);
     } else {
-      await indexedDbService.undoManualEntry(sourceId);
+      await IndexedDbService.undoManualEntry(sourceId);
     }
   }
 
@@ -288,7 +288,24 @@ class DataAdapter {
         total_storage_mb: 0
       };
     } else {
-      return await indexedDbService.getStats();
+      return await IndexedDbService.getStats();
+    }
+  }
+
+  // === CONFERENCE SEARCH OPERATIONS ===
+
+  async searchConferenceValue(searchValue: string, _date?: string): Promise<any[]> {
+    if (this.mode === 'supabase') {
+      // Parse the value to number for Supabase search
+      const numericValue = parseFloat(searchValue.replace(',', '.').replace(/[^\d.-]/g, ''));
+      if (isNaN(numericValue)) {
+        throw new Error('Valor inválido para busca');
+      }
+
+      return await supabaseDataService.searchTransactionsByValue(numericValue);
+    } else {
+      // For IndexedDB, search by exact value match
+      return await IndexedDbService.searchByValue(parseFloat(searchValue.replace(',', '.')));
     }
   }
 
@@ -299,10 +316,10 @@ class DataAdapter {
       return await supabaseDataService.exportConferences(startDate, endDate);
     } else {
       // For IndexedDB, get all conferences and filter
-      const allHistory = await indexedDbService.getHistoryByDate(
+      const allHistory = await IndexedDbService.getHistoryByDate(
         new Date().toISOString().split('T')[0]
       );
-      return allHistory.filter(h => h.operation_type === 'cash_conference');
+      return allHistory.filter((h: any) => h.operation_type === 'cash_conference');
     }
   }
 }

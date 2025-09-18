@@ -1,7 +1,8 @@
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import ManipulariumLogo from '../assets/ManipulariumLogo.png';
-import { parseExcelFile, ParseResult } from '../utils/excelParser';
+import { parseExcelFile, ParseResult as ExcelParseResult } from '../utils/excelParser';
+import { ParseResult } from '../workers/excelProcessor.worker';
 import { DataTable } from '../components/DataTable';
 import { VirtualizedDataTable } from '../components/VirtualizedDataTable';
 import { VirtualizedCashTable } from '../components/VirtualizedCashTable';
@@ -22,12 +23,13 @@ import { performanceLogger } from '../utils/performanceLogger';
 import { useDashboardFilters, usePersistentState } from '../hooks/usePersistentState';
 import StorageAdapter from '../lib/storageAdapter';
 import { ConferenceHistoryEntry } from '../services/indexedDbService';
-import { formatForDisplay, getTodayDDMMYYYY } from '../utils/dateFormatter';
+import { formatForDisplay, getTodayDDMMYYYY, formatDateForQuery } from '../utils/dateFormatter';
 import { LaunchTab } from '../components/LaunchTab';
 import { useDebounce } from '../hooks/useDebounce';
 import { StorageStatus } from '../components/StorageStatus';
 import { ProcessingSpinner, useProcessingState } from '../components/ProcessingSpinner';
-import { useExcelWorker } from '../hooks/useExcelWorker';
+import { useExcelWorker, ProcessFileOptions } from '../hooks/useExcelWorker';
+import { executeBankingUploadTransaction, handleTransactionError } from '../lib/dexieTransactions';
 import { useGlobalKeyboardShortcuts, useFocusManager, useFocusRestore } from '../hooks/useKeyboardShortcuts';
 import { useValueLookup } from '../hooks/useValueLookup';
 import toast from 'react-hot-toast';
@@ -38,6 +40,9 @@ export const Dashboard: React.FC = () => {
   // Web Worker hooks
   const { processExcelFile, terminateWorker } = useExcelWorker();
   const processingState = useProcessingState();
+
+  // AbortController for cancelling operations
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Value lookup hook for O(1) search
   const valueLookup = useValueLookup();
@@ -64,7 +69,22 @@ export const Dashboard: React.FC = () => {
   const dateFilterRef = useRef<HTMLInputElement>(null);
 
   // Persistent state for parsed data
-  const [parseResult, setParseResult] = usePersistentState<ParseResult | null>('dashboard_parse_result', null);
+  // Compatible parse result interface for table display
+  interface CompatibleParseResult {
+    success: boolean;
+    data: ValueMatch[];
+    errors: string[];
+    warnings: string[];
+    stats: {
+      totalRows: number;
+      validRows: number;
+      rowsWithWarnings: number;
+      rowsWithErrors: number;
+      totalValue: number;
+    };
+  }
+
+  const [parseResult, setParseResult] = usePersistentState<CompatibleParseResult | null>('dashboard_parse_result', null);
 
   // Value index for optimized search
   const [valueIndex, setValueIndex] = useState<Map<number, ValueMatch[]> | null>(null);
@@ -308,98 +328,284 @@ export const Dashboard: React.FC = () => {
     }
   };
 
+  const handleCancelProcessing = useCallback(() => {
+    console.log('🛑 Cancelando processamento...');
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    terminateWorker();
+    processingState.stopProcessing();
+    setError(null);
+    toast.info('Processamento cancelado pelo usuário');
+  }, [terminateWorker, processingState]);
+
   const handleLoadFile = async () => {
-    console.log('handleLoadFile called, selectedFile:', selectedFile);
+    console.log('🚀 handleLoadFile called, selectedFile:', selectedFile);
     if (!selectedFile) {
-      console.log('No file selected');
+      console.log('❌ No file selected');
       return;
     }
 
-    console.log('Starting file processing with Web Worker...');
+    // Validate file first with user-friendly messages
+    const maxSize = 50 * 1024 * 1024; // 50MB
+    if (selectedFile.size > maxSize) {
+      const fileSizeMB = (selectedFile.size / (1024 * 1024)).toFixed(2);
+      const errorMessage = `Arquivo muito grande: ${fileSizeMB}MB (máximo: 50MB)`;
+      setError(errorMessage);
+      toast.error(
+        `📁 Arquivo muito grande\n` +
+        `📊 Tamanho atual: ${fileSizeMB}MB\n` +
+        `⚠️ Tamanho máximo: 50MB\n` +
+        `💡 Reduza o arquivo ou divida em partes menores`,
+        { duration: 8000 }
+      );
+      return;
+    }
+
+    const allowedTypes = ['.xlsx', '.xls', '.csv'];
+    const fileExtension = selectedFile.name.toLowerCase().substring(selectedFile.name.lastIndexOf('.'));
+    if (!allowedTypes.includes(fileExtension)) {
+      const errorMessage = `Tipo de arquivo não suportado: ${fileExtension}`;
+      setError(errorMessage);
+      toast.error(
+        `📄 Formato de arquivo não suportado\n` +
+        `❌ Arquivo atual: ${fileExtension}\n` +
+        `✅ Formatos aceitos: .xlsx, .xls, .csv\n` +
+        `🔄 Converta o arquivo para um formato suportado`,
+        { duration: 8000 }
+      );
+      return;
+    }
+
+    // Check if file seems valid (not empty, has extension)
+    if (selectedFile.size === 0) {
+      setError('Arquivo vazio ou corrompido');
+      toast.error(
+        `📄 Arquivo vazio\n` +
+        `⚠️ O arquivo selecionado não tem conteúdo\n` +
+        `🔧 Verifique se o arquivo não está corrompido`,
+        { duration: 6000 }
+      );
+      return;
+    }
+
+    console.log('✅ Starting file processing with Web Worker...');
+    const startTime = Date.now();
+
+    // Create new AbortController for this operation
+    abortControllerRef.current = new AbortController();
+
     processingState.startProcessing('parsing');
     setError(null);
 
     try {
-      const startTime = Date.now();
+      // Setup processing options with 60s timeout
+      const options: ProcessFileOptions = {
+        signal: abortControllerRef.current.signal,
+        timeout: 60000 // 60 seconds
+      };
 
-      // Process file in Web Worker
+      // Process file in Web Worker with proper error handling
       processingState.updateStage('parsing', 'Lendo planilha...');
       const processedData = await processExcelFile(
         selectedFile,
         operationDate,
-        (progress) => processingState.updateProgress(progress)
+        (progress) => {
+          console.log(`📊 Upload progress: ${progress}%`);
+          processingState.updateProgress(progress);
+        },
+        options
       );
 
+      // Check for abort after processing
+      if (abortControllerRef.current?.signal.aborted) {
+        console.log('🛑 Processing was aborted');
+        return;
+      }
+
       const processingTime = Date.now() - startTime;
+      console.log(`⚡ Processing completed in ${processingTime}ms`);
 
       if (processedData.parseResult.success) {
         processingState.updateStage('indexing', 'Criando índices de busca...');
 
-        setParseResult(processedData.parseResult);
+        // Convert ParsedRow[] to ValueMatch[] for compatibility
+        const convertedData: ValueMatch[] = processedData.parseResult.data.map((row, index) => ({
+          id: `row_${index}`,
+          date: row.date,
+          paymentType: row.paymentType,
+          cpf: row.cpf,
+          value: row.value,
+          originalHistory: row.originalHistory,
+          rowIndex: index,
+          validationStatus: row.validationStatus,
+          validationMessage: row.validationMessage,
+          bankData: {
+            date: row.date,
+            description: row.originalHistory,
+            value: row.value,
+            documentNumber: row.cpf,
+            transactionType: row.paymentType
+          }
+        }));
 
-        // Convert Map to the format expected by the existing code
-        const index = new Map<number, ValueMatch[]>();
-        processedData.valueCentsMap.forEach((ids, valueCents) => {
-          const matches: ValueMatch[] = ids.map(id => {
-            const entry = processedData.normalizedEntries[id];
-            return {
-              id: entry.id.toString(),
-              date: entry.date || '',
-              paymentType: entry.transaction_type || 'OUTROS',
-              cpf: entry.document_number || '',
-              value: entry.value,
-              originalHistory: entry.description || '',
-              validationStatus: 'valid' as const,
-              bankData: {
-                date: entry.date,
-                description: entry.description,
-                value: entry.value,
-                documentNumber: entry.document_number,
-                transactionType: entry.transaction_type
-              }
-            };
-          });
-          index.set(valueCents, matches);
-        });
+        // Create compatible ParseResult with ValueMatch[]
+        const compatibleParseResult: CompatibleParseResult = {
+          success: processedData.parseResult.success,
+          data: convertedData,
+          errors: processedData.parseResult.errors,
+          warnings: processedData.parseResult.warnings,
+          stats: processedData.parseResult.stats
+        };
 
+        setParseResult(compatibleParseResult);
+
+        // Create value index from converted data
+        const index = createValueIndex(convertedData);
         setValueIndex(index);
-        console.log(`Índice criado com ${index.size} valores únicos`);
+        console.log(`🔍 Índice criado com ${index.size} valores únicos`);
 
         processingState.updateStage('saving', 'Salvando no banco de dados...');
 
-        // Save to database using the parsed data
+        // Save to database using secure transaction
         try {
-          await StorageAdapter.saveBankingUpload(
-            processedData.parseResult.data,
-            selectedFile.name,
+          const bankingData = {
+            entries: processedData.normalizedEntries.map(entry => ({
+              source_id: entry.source_id,
+              day: entry.day,
+              document_number: entry.document_number,
+              date: entry.date,
+              description: entry.description,
+              value_cents: entry.value_cents,
+              value: entry.value,
+              transaction_type: entry.transaction_type,
+              balance: entry.balance,
+              status: entry.status,
+              source: 'banking_upload' as const
+            })),
+            fileName: selectedFile.name,
             operationDate,
-            uploadMode
-          );
-          console.log('Data saved to database successfully');
-          toast.success(`Arquivo processado com sucesso em ${processingTime}ms`);
+            uploadMode,
+            userId: user?.username || 'default_user'
+          };
+
+          console.log('💾 Saving to database with transaction...');
+          const dbResult = await executeBankingUploadTransaction(bankingData);
+
+          if (dbResult.success) {
+            console.log('✅ Data saved to database successfully:', dbResult.data);
+            toast.success(
+              `✅ Arquivo processado com sucesso!\n` +
+              `⏱️ Tempo: ${processingTime}ms\n` +
+              `📊 ${processedData.parseResult.stats.totalRows} linhas processadas\n` +
+              `✔️ ${processedData.parseResult.stats.validRows} válidas`,
+              { duration: 5000 }
+            );
+          } else {
+            console.error('❌ Database save failed:', dbResult.error);
+            handleTransactionError(dbResult, 'Erro ao salvar no banco');
+
+            // Show a specific toast for database issues but don't fail parsing
+            toast.error(
+              `⚠️ Dados processados mas erro ao salvar no banco\n` +
+              `📊 ${processedData.parseResult.stats.totalRows} linhas ainda disponíveis na tabela\n` +
+              `❌ ${dbResult.error}`,
+              { duration: 8000 }
+            );
+          }
         } catch (dbError) {
-          console.error('Error saving to database:', dbError);
-          toast.error('Erro ao salvar no banco de dados');
-          // Don't fail the entire operation if DB save fails
+          console.error('❌ Critical database error:', dbError);
+          toast.error(
+            `❌ Erro crítico no banco de dados\n` +
+            `📊 Dados processados e visíveis na tabela\n` +
+            `🔧 Verifique a configuração do banco`,
+            { duration: 8000 }
+          );
         }
 
-        console.log(`Arquivo processado em ${processingTime}ms`);
-        console.log(`Linhas processadas: ${processedData.parseResult.stats.totalRows}`);
-        console.log(`Linhas válidas: ${processedData.parseResult.stats.validRows}`);
-        console.log(`Avisos: ${processedData.parseResult.warnings.length}`);
+        console.log(`📊 Processing summary:`);
+        console.log(`  - Tempo total: ${processingTime}ms`);
+        console.log(`  - Linhas processadas: ${processedData.parseResult.stats.totalRows}`);
+        console.log(`  - Linhas válidas: ${processedData.parseResult.stats.validRows}`);
+        console.log(`  - Avisos: ${processedData.parseResult.warnings.length}`);
+        console.log(`  - Erros: ${processedData.parseResult.errors.length}`);
       } else {
-        setError(processedData.parseResult.errors.join('\n'));
+        // Processing failed
+        const errorMsg = processedData.parseResult.errors.join('\n');
+        console.error('❌ Parse failed:', errorMsg);
+        setError(errorMsg);
         setParseResult(null);
-        toast.error('Erro no processamento da planilha');
+
+        toast.error(
+          `❌ Erro no processamento da planilha\n` +
+          `📄 Verifique se o formato está correto\n` +
+          `🔍 ${processedData.parseResult.errors.length} erro(s) encontrado(s)`,
+          { duration: 8000 }
+        );
       }
     } catch (err) {
-      console.error('Error processing file:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Erro ao processar arquivo';
-      setError(errorMessage);
+      console.error('💥 Critical error processing file:', err);
+
+      // Handle different error types with user-friendly messages
+      if (err instanceof DOMException) {
+        if (err.name === 'AbortError') {
+          console.log('🛑 Operation was aborted');
+          return; // Don't show error for user-initiated abort
+        } else if (err.name === 'TimeoutError') {
+          const errorMessage = '⏰ Timeout: Arquivo muito grande ou complexo';
+          setError(errorMessage);
+          toast.error(
+            `⏰ Processamento interrompido por timeout\n` +
+            `📁 Arquivo muito grande ou complexo\n` +
+            `💡 Tente reduzir o tamanho ou simplificar os dados`,
+            { duration: 10000 }
+          );
+        }
+      } else {
+        const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido ao processar arquivo';
+        setError(errorMessage);
+
+        // Categorize common errors for better UX
+        if (errorMessage.includes('XLSX') || errorMessage.includes('planilha')) {
+          toast.error(
+            `📄 Erro no formato da planilha\n` +
+            `✅ Formatos suportados: .xlsx, .xls, .csv\n` +
+            `🔧 Verifique se o arquivo não está corrompido`,
+            { duration: 8000 }
+          );
+        } else if (errorMessage.includes('network') || errorMessage.includes('fetch')) {
+          toast.error(
+            `🌐 Erro de conexão\n` +
+            `🔄 Verifique sua conexão com a internet\n` +
+            `⚡ Tente novamente em alguns segundos`,
+            { duration: 8000 }
+          );
+        } else if (errorMessage.includes('memory') || errorMessage.includes('heap')) {
+          toast.error(
+            `💾 Erro de memória\n` +
+            `📁 Arquivo muito grande para o sistema\n` +
+            `📉 Tente um arquivo menor ou feche outras abas`,
+            { duration: 8000 }
+          );
+        } else {
+          toast.error(
+            `❌ Erro inesperado no processamento\n` +
+            `🔍 ${errorMessage}\n` +
+            `🔄 Tente recarregar a página`,
+            { duration: 8000 }
+          );
+        }
+      }
+
       setParseResult(null);
-      toast.error(errorMessage);
+
+      // Clean up worker on error
+      terminateWorker();
     } finally {
+      // Always clean up
+      abortControllerRef.current = null;
       processingState.stopProcessing();
+      console.log('🏁 Upload operation finished');
     }
   };
 
@@ -1310,12 +1516,15 @@ export const Dashboard: React.FC = () => {
       {/* Keyboard Shortcuts Help */}
       <KeyboardShortcutsHelp />
 
-      {/* Processing Spinner */}
+      {/* Processing Spinner with Cancel Support */}
       <ProcessingSpinner
         show={processingState.isProcessing}
         stage={processingState.stage}
         progress={processingState.progress}
         message={processingState.message}
+        showStallWarning={processingState.showStallWarning}
+        canCancel={processingState.canCancel}
+        onCancel={handleCancelProcessing}
       />
     </div>
   );
