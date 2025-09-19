@@ -225,3 +225,10 @@ export function isSameDate(date1: string, date2: string): boolean {
 
   return d1.toDateString() === d2.toDateString();
 }
+
+/**
+ * Formats date for database queries (YYYY-MM-DD)
+ */
+export function formatDateForQuery(dateInput: DateInput): string {
+  return formatForDateInput(dateInput);
+}

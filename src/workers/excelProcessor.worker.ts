@@ -5,6 +5,30 @@ import { generateOriginHashSync } from '../utils/idGenerator';
 import { formSchemas, safeValidate, formatValidationError } from '../utils/validationSchemas';
 import { performanceLogger } from '../utils/performanceLogger';
 
+// Worker message types for standardized communication
+export interface WorkerProgressMessage {
+  type: 'progress';
+  pct: number;
+  stage?: string;
+  message?: string;
+}
+
+export interface WorkerDoneMessage {
+  type: 'done';
+  payload: ProcessedExcelData;
+}
+
+export interface WorkerErrorMessage {
+  type: 'error';
+  error: {
+    name: string;
+    message: string;
+    stack?: string;
+  };
+}
+
+export type WorkerMessage = WorkerProgressMessage | WorkerDoneMessage | WorkerErrorMessage;
+
 export interface ParsedRow {
   date: string;
   paymentType: string;
@@ -233,20 +257,45 @@ class ExcelProcessor {
     return this.validateRowWithZod(row);
   }
 
-  // Main processing function
-  async processExcelFile(fileBuffer: ArrayBuffer, operationDate: string): Promise<ProcessedExcelData> {
+  // Main processing function with abort signal support
+  async processExcelFile(
+    fileBuffer: ArrayBuffer,
+    operationDate: string,
+    onProgress?: (progress: number, stage?: string, message?: string) => void
+  ): Promise<ProcessedExcelData> {
+    console.log('💼 Worker: Iniciando processamento Excel...', {
+      fileSize: fileBuffer.byteLength,
+      operationDate
+    });
+
     const parseOpId = performanceLogger.startOperation('excel_parse', {
       fileSize: fileBuffer.byteLength,
       operationDate
     });
 
     try {
+      // Progress: Starting
+      onProgress?.(5, 'reading', 'Lendo arquivo Excel...');
+
+      // Check for abort periodically
+      const checkAbort = () => {
+        // We can't access AbortSignal directly in worker, but we can check for termination
+        // The termination will naturally interrupt this process
+      };
       // Parse Excel file
+      checkAbort();
+      onProgress?.(15, 'parsing', 'Analisando estrutura da planilha...');
       const workbook = XLSX.read(fileBuffer, { type: 'array' });
       const sheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[sheetName];
 
+      if (!worksheet) {
+        throw new Error('Planilha não encontrada ou vazia');
+      }
+
       // Convert to JSON
+      checkAbort();
+      onProgress?.(25, 'converting', 'Convertendo dados da planilha...');
       const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
       if (rawData.length < 2) {
@@ -254,6 +303,8 @@ class ExcelProcessor {
       }
 
       // Detect columns from header
+      checkAbort();
+      onProgress?.(35, 'analyzing', 'Detectando colunas da planilha...');
       const headerRow = rawData[0] as any[];
       const columns = this.detectColumns(headerRow);
 
@@ -269,8 +320,19 @@ class ExcelProcessor {
       let rowsWithWarnings = 0;
       let rowsWithErrors = 0;
 
-      // Process each row
+      // Process each row with progress updates
+      checkAbort();
+      onProgress?.(45, 'processing', 'Processando linhas de dados...');
+
+      const totalRows = rawData.length - 1; // Exclude header
+
       for (let i = 1; i < rawData.length; i++) {
+        // Update progress every 50 rows or on last row
+        if (i % 50 === 0 || i === rawData.length - 1) {
+          const progress = 45 + Math.round((i / totalRows) * 35); // 45% to 80%
+          onProgress?.(progress, 'processing', `Processando linha ${i} de ${totalRows}...`);
+          checkAbort();
+        }
         const row = rawData[i] as any[];
         if (!row || row.length === 0) continue;
 
@@ -340,6 +402,8 @@ class ExcelProcessor {
       };
 
       // Convert to normalized bank entries with origin_hash
+      checkAbort();
+      onProgress?.(85, 'normalizing', 'Normalizando dados para banco...');
       const normalizedEntries: BankEntryForProcessing[] = parsedData.map((row, index) => {
         const originHash = generateOriginHashSync(
           row.date,
@@ -363,6 +427,8 @@ class ExcelProcessor {
       });
 
       // Create value_cents map for quick lookup
+      checkAbort();
+      onProgress?.(95, 'indexing', 'Criando índices de busca...');
       const valueCentsMap = new Map<number, number[]>();
       normalizedEntries.forEach((entry) => {
         if (!valueCentsMap.has(entry.value_cents)) {
@@ -377,12 +443,22 @@ class ExcelProcessor {
         normalizedEntries
       };
 
+      onProgress?.(100, 'done', 'Processamento concluído!');
       performanceLogger.endOperation(parseOpId);
+
+      console.log('✅ Worker: Processamento Excel concluído com sucesso');
       return result;
 
     } catch (error) {
       performanceLogger.endOperation(parseOpId);
-      throw new Error(`Erro ao processar planilha: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+      console.error('❌ Worker: Erro no processamento Excel:', error);
+
+      // Always ensure we reject with a proper error
+      if (error instanceof Error) {
+        throw error;
+      } else {
+        throw new Error(`Erro ao processar planilha: ${error || 'Erro desconhecido'}`);
+      }
     }
   }
 

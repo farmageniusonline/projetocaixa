@@ -6,6 +6,9 @@ interface ProcessingSpinnerProps {
   progress?: number;
   stage?: 'parsing' | 'normalizing' | 'indexing' | 'saving';
   show: boolean;
+  showStallWarning?: boolean;
+  canCancel?: boolean;
+  onCancel?: () => void;
 }
 
 const STAGE_CONFIG = {
@@ -35,7 +38,10 @@ export function ProcessingSpinner({
   message,
   progress,
   stage = 'parsing',
-  show
+  show,
+  showStallWarning = false,
+  canCancel = false,
+  onCancel
 }: ProcessingSpinnerProps) {
   if (!show) return null;
 
@@ -98,6 +104,39 @@ export function ProcessingSpinner({
           ))}
         </div>
 
+        {/* Stall Warning */}
+        {showStallWarning && (
+          <div className="mt-4 p-3 bg-yellow-900/20 border border-yellow-700 rounded-md">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div className="ml-3 flex-1">
+                <p className="text-sm text-yellow-400">
+                  Processamento mais lento que o esperado...
+                </p>
+                <p className="text-xs text-yellow-300 mt-1">
+                  Isso pode acontecer com arquivos grandes ou complexos
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Cancel Button */}
+        {canCancel && onCancel && (
+          <div className="mt-4">
+            <button
+              onClick={onCancel}
+              className="w-full px-4 py-2 text-sm font-medium text-red-300 bg-red-900/20 border border-red-600 rounded-md hover:bg-red-900/30 transition-colors"
+            >
+              Cancelar Processamento
+            </button>
+          </div>
+        )}
+
         {/* Tip */}
         <div className="mt-6 p-3 bg-gray-900 rounded-md">
           <p className="text-xs text-gray-400 text-center">
@@ -109,33 +148,68 @@ export function ProcessingSpinner({
   );
 }
 
-// Hook for managing processing state
+// Hook for managing processing state with UX fallbacks
 export function useProcessingState() {
   const [isProcessing, setIsProcessing] = React.useState(false);
   const [stage, setStage] = React.useState<ProcessingSpinnerProps['stage']>('parsing');
   const [progress, setProgress] = React.useState<number | undefined>(undefined);
   const [message, setMessage] = React.useState<string | undefined>(undefined);
+  const [lastProgressUpdate, setLastProgressUpdate] = React.useState<number>(0);
+  const [showStallWarning, setShowStallWarning] = React.useState(false);
+  const [canCancel, setCanCancel] = React.useState(false);
+
+  // Detect stalled progress (no update for >10s)
+  React.useEffect(() => {
+    if (!isProcessing) {
+      setShowStallWarning(false);
+      return;
+    }
+
+    const checkStall = () => {
+      const timeSinceLastUpdate = Date.now() - lastProgressUpdate;
+      if (timeSinceLastUpdate > 10000) { // 10 seconds
+        setShowStallWarning(true);
+        setCanCancel(true);
+      }
+    };
+
+    const stallTimer = setInterval(checkStall, 2000); // Check every 2s
+    return () => clearInterval(stallTimer);
+  }, [isProcessing, lastProgressUpdate]);
 
   const startProcessing = React.useCallback((initialStage: ProcessingSpinnerProps['stage'] = 'parsing') => {
+    console.log('🚀 Iniciando processamento...');
     setIsProcessing(true);
     setStage(initialStage);
     setProgress(undefined);
     setMessage(undefined);
+    setLastProgressUpdate(Date.now());
+    setShowStallWarning(false);
+    setCanCancel(false);
   }, []);
 
   const updateStage = React.useCallback((newStage: ProcessingSpinnerProps['stage'], newMessage?: string) => {
+    console.log(`📍 Etapa: ${newStage} - ${newMessage || ''}`);
     setStage(newStage);
     setMessage(newMessage);
+    setLastProgressUpdate(Date.now());
+    setShowStallWarning(false); // Reset warning on progress
   }, []);
 
   const updateProgress = React.useCallback((newProgress: number) => {
+    console.log(`📊 Progresso: ${newProgress}%`);
     setProgress(newProgress);
+    setLastProgressUpdate(Date.now());
+    setShowStallWarning(false); // Reset warning on progress
   }, []);
 
   const stopProcessing = React.useCallback(() => {
+    console.log('✅ Processamento finalizado');
     setIsProcessing(false);
     setProgress(undefined);
     setMessage(undefined);
+    setShowStallWarning(false);
+    setCanCancel(false);
   }, []);
 
   return {
@@ -143,6 +217,8 @@ export function useProcessingState() {
     stage,
     progress,
     message,
+    showStallWarning,
+    canCancel,
     startProcessing,
     updateStage,
     updateProgress,
