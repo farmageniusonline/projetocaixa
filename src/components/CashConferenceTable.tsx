@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ValueMatch, formatCurrency } from '../utils/valueNormalizer';
+import { formatForDisplay } from '../utils/dateFormatter';
 
 interface ConferredItem extends ValueMatch {
   conferredAt: Date;
@@ -180,7 +181,7 @@ export const CashConferenceTable: React.FC<CashConferenceTableProps> = ({
           <tbody className="divide-y divide-gray-700">
             {sortedItems.map((item) => (
               <tr key={item.conferredId} className="hover:bg-gray-800/50 transition-colors">
-                <td className="px-4 py-3 text-sm text-gray-300">{item.date}</td>
+                <td className="px-4 py-3 text-sm text-gray-300">{formatForDisplay(item.date)}</td>
                 <td className="px-4 py-3">
                   <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                     item.paymentType === 'PIX RECEBIDO' ? 'bg-green-900/50 text-green-300 border border-green-700' :

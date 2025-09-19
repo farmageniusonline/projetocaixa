@@ -90,7 +90,7 @@ const PAYMENT_TYPES = {
 // Column name variations
 const COLUMN_MAPPINGS = {
   date: ['data', 'date', 'data do lançamento', 'data do lancamento', 'dt', 'data mov', 'data movimento'],
-  history: ['histórico', 'historico', 'descrição', 'descricao', 'histórico/descrição', 'historico/descricao', 'descrição/histórico', 'descricao/historico', 'desc'],
+  history: ['histórico', 'historico', 'histórico original', 'historico original', 'histã³rico original', 'histã³rico', 'descrição', 'descricao', 'histórico/descrição', 'historico/descricao', 'descrição/histórico', 'descricao/historico', 'desc'],
   value: ['valor', 'valor (r$)', 'valor r$', 'vlr', 'val'],
   credit: ['crédito', 'credito', 'entrada', 'receita'],
   debit: ['débito', 'debito', 'saída', 'saida', 'despesa'],
@@ -185,6 +185,26 @@ class ExcelProcessor {
 
       // If it's a string
       if (typeof dateValue === 'string') {
+        const trimmed = dateValue.trim();
+
+        // Handle Brazilian date format DD/MM/YYYY
+        if (trimmed.includes('/')) {
+          const parts = trimmed.split('/');
+          if (parts.length === 3) {
+            const [part1, part2, part3] = parts;
+            // Assume DD/MM/YYYY format for Brazilian dates
+            const day = parseInt(part1);
+            const month = parseInt(part2);
+            const year = parseInt(part3);
+
+            if (day >= 1 && day <= 31 && month >= 1 && month <= 12 && year >= 1900) {
+              const date = new Date(year, month - 1, day);
+              return formatToDDMMYYYY(date);
+            }
+          }
+        }
+
+        // Fallback to default parsing
         const parsed = new Date(dateValue);
         if (!isNaN(parsed.getTime())) {
           return formatToDDMMYYYY(parsed);
@@ -302,11 +322,25 @@ class ExcelProcessor {
         throw new Error('Planilha deve conter pelo menos uma linha de dados além do cabeçalho');
       }
 
-      // Detect columns from header
+      // Detect columns from header - try multiple rows as some files have metadata at the top
       checkAbort();
       onProgress?.(35, 'analyzing', 'Detectando colunas da planilha...');
-      const headerRow = rawData[0] as any[];
-      const columns = this.detectColumns(headerRow);
+
+      let columns = { dateCol: -1, historyCol: -1, valueCol: -1, creditCol: -1, debitCol: -1 };
+      let headerRowIndex = -1;
+
+      // Try first 5 rows to find the header row
+      for (let rowIndex = 0; rowIndex < Math.min(5, rawData.length); rowIndex++) {
+        const candidateRow = rawData[rowIndex] as any[];
+        const testColumns = this.detectColumns(candidateRow);
+
+        // If we found both required columns, use this row
+        if (testColumns.dateCol !== -1 && testColumns.historyCol !== -1) {
+          columns = testColumns;
+          headerRowIndex = rowIndex;
+          break;
+        }
+      }
 
       if (columns.dateCol === -1 || columns.historyCol === -1) {
         throw new Error('Não foi possível detectar as colunas obrigatórias (Data e Histórico)');
@@ -324,9 +358,9 @@ class ExcelProcessor {
       checkAbort();
       onProgress?.(45, 'processing', 'Processando linhas de dados...');
 
-      const totalRows = rawData.length - 1; // Exclude header
+      const totalRows = rawData.length - headerRowIndex - 1; // Exclude header and metadata rows
 
-      for (let i = 1; i < rawData.length; i++) {
+      for (let i = headerRowIndex + 1; i < rawData.length; i++) {
         // Update progress every 50 rows or on last row
         if (i % 50 === 0 || i === rawData.length - 1) {
           const progress = 45 + Math.round((i / totalRows) * 35); // 45% to 80%

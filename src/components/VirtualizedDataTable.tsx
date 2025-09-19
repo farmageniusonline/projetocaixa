@@ -3,6 +3,7 @@ import { FixedSizeList as List } from 'react-window';
 import { ValueMatch } from '../utils/valueNormalizer';
 import { useBankingTableSelectors, TableFilters } from '../hooks/useTableSelectors';
 import { usePersistentState } from '../hooks/usePersistentState';
+import { formatForDisplay } from '../utils/dateFormatter';
 
 interface VirtualizedDataTableProps {
   parseResult: { data: ValueMatch[] } | null;
@@ -80,7 +81,7 @@ const TableRow = React.memo<{
 
       {/* Date */}
       <div className="col-span-2 text-gray-300">
-        {item.date || '-'}
+        {item.date ? formatForDisplay(item.date) : '-'}
       </div>
 
       {/* Payment Type */}

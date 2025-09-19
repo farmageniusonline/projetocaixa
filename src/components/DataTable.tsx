@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { ParsedRow } from '../utils/excelParser';
 import { usePersistentState } from '../hooks/usePersistentState';
+import { formatForDisplay } from '../utils/dateFormatter';
 
 interface DataTableProps {
   data: ParsedRow[];
@@ -255,7 +256,7 @@ export const DataTable: React.FC<DataTableProps> = ({ data, stats, transferredId
           <tbody className="divide-y divide-gray-700">
             {paginatedData.map((row, index) => (
               <tr key={index} className="hover:bg-gray-800/50 transition-colors">
-                <td className="px-4 py-3 text-sm text-gray-300">{row.date}</td>
+                <td className="px-4 py-3 text-sm text-gray-300">{formatForDisplay(row.date)}</td>
                 <td className="px-4 py-3">
                   <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                     row.paymentType === 'PIX RECEBIDO' ? 'bg-green-900/50 text-green-300 border border-green-700' :
