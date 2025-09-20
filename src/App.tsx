@@ -12,6 +12,12 @@ function AppRoutes() {
   const { user, isLoading } = useAuth();
   const storageStatus = useStorageInitializer();
 
+  console.log('AppRoutes Debug:', {
+    user,
+    isLoading,
+    storageStatus
+  });
+
   if (isLoading || storageStatus.isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 to-black">
@@ -28,23 +34,39 @@ function AppRoutes() {
     );
   }
 
-  return (
-    <Routes>
-      <Route
-        path="/"
-        element={user ? <Navigate to="/dashboard" replace /> : <LoginForm />}
-      />
-      <Route
-        path="/dashboard"
-        element={
-          <ProtectedRoute>
-            <Dashboard />
-          </ProtectedRoute>
-        }
-      />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
-  );
+  try {
+    return (
+      <Routes>
+        <Route
+          path="/"
+          element={user ? <Navigate to="/dashboard" replace /> : <LoginForm />}
+        />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    );
+  } catch (error) {
+    console.error('AppRoutes render error:', error);
+    return (
+      <div className="min-h-screen bg-red-900 text-white p-8">
+        <h1>Application Error</h1>
+        <p>Error in routing: {String(error)}</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="mt-4 px-4 py-2 bg-red-700 rounded"
+        >
+          Reload
+        </button>
+      </div>
+    );
+  }
 }
 
 function App() {

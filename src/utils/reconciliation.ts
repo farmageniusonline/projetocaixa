@@ -293,16 +293,14 @@ export class ReconciliationEngine {
           sourceId: record1.sourceId!,
           record: record1,
           matchingFields: matchingFields.filter(f =>
-            ['value', 'date', 'cpf'].includes(f) ||
-            rule => this.applyRule(rule as any, record1, record2).matchingFields.includes(f)
+            ['value', 'date', 'cpf'].includes(f)
           )
         },
         {
           sourceId: record2.sourceId!,
           record: record2,
           matchingFields: matchingFields.filter(f =>
-            ['value', 'date', 'cpf'].includes(f) ||
-            rule => this.applyRule(rule as any, record1, record2).matchingFields.includes(f)
+            ['value', 'date', 'cpf'].includes(f)
           )
         }
       ],

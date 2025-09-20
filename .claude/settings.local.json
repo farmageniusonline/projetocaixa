@@ -46,7 +46,17 @@
       "Bash(echo:*)",
       "Bash(source:*)",
       "Bash(timeout 10s npx @supabase/mcp-server-supabase --project-ref=artgvpolienazfaalwtk --help)",
-      "Bash(timeout 5s npx @supabase/mcp-server-supabase --project-ref=artgvpolienazfaalwtk)"
+      "Bash(timeout 5s npx @supabase/mcp-server-supabase --project-ref=artgvpolienazfaalwtk)",
+      "Bash(tasklist)",
+      "Bash(findstr:*)",
+      "Bash(netstat:*)",
+      "Bash(taskkill:*)",
+      "Bash(./node_modules/.bin/playwright:*)",
+      "Bash(find:*)",
+      "Bash(npx kill-port:*)",
+      "Bash(timeout 10 npm run dev)",
+      "Bash(git remote add:*)",
+      "Bash(rm:*)"
     ],
     "deny": [],
     "ask": []

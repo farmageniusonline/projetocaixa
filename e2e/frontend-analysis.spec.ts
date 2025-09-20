@@ -73,12 +73,12 @@ test.describe('Frontend Analysis', () => {
       const passwordInput = page.locator('input[type="password"]').first();
 
       if (await usernameInput.isVisible()) {
-        await usernameInput.fill('admin');
+        await usernameInput.fill('TEST_USER');
         console.log('👤 Username filled');
       }
 
       if (await passwordInput.isVisible()) {
-        await passwordInput.fill('manipularium');
+        await passwordInput.fill('TEST_PASSWORD');
         console.log('🔑 Password filled');
       }
 
@@ -109,8 +109,8 @@ test.describe('Frontend Analysis', () => {
     // Login if needed
     const hasLoginForm = await page.locator('input[type="password"]').count() > 0;
     if (hasLoginForm) {
-      await page.fill('input[type="text"]', 'admin');
-      await page.fill('input[type="password"]', 'manipularium');
+      await page.fill('input[type="text"]', 'TEST_USER');
+      await page.fill('input[type="password"]', 'TEST_PASSWORD');
       await page.click('button:has-text("Entrar")');
       await page.waitForTimeout(3000);
     }

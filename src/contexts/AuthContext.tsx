@@ -10,6 +10,7 @@ interface AuthProviderProps {
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(() => {
+    console.log('AuthProvider: Initializing user state');
     // Try to restore user from localStorage on initialization
     try {
       if (typeof window === 'undefined') return null;
@@ -32,9 +33,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [loginError, setLoginError] = useState<string>('');
 
   const login = async (username: string, password: string): Promise<boolean> => {
     setIsLoading(true);
+    setLoginError(''); // Clear previous errors
 
     try {
       // Try Supabase authentication first
@@ -45,16 +48,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       if (error) {
         console.error('Supabase login error:', error.message);
-
-        // Fallback to hardcoded credentials for backward compatibility
-        if (username === 'admin' && password === 'manipularium') {
-          const userData: User = { username: 'admin' };
-          setUser(userData);
-          // Persist user to localStorage
-          localStorage.setItem('auth_user', JSON.stringify(userData));
-          return true;
-        }
-
+        setLoginError('Senha ou Usuario Incorretos');
         return false;
       }
 
@@ -105,23 +99,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return true;
       }
 
+      console.log('Login failed: No user data returned');
+      setLoginError('Senha ou Usuario Incorretos');
       return false;
     } catch (error) {
       console.error('Login error:', error);
-
-      // Fallback for development
-      if (username === 'admin' && password === 'manipularium') {
-        const userData: User = { username: 'admin' };
-        setUser(userData);
-        // Persist user to localStorage
-        localStorage.setItem('auth_user', JSON.stringify(userData));
-        return true;
-      }
-
+      setLoginError('Senha ou Usuario Incorretos');
       return false;
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const clearLoginError = () => {
+    setLoginError('');
   };
 
   const logout = async () => {
@@ -147,8 +138,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Background session validation (optional) - only if Supabase is configured
       try {
         supabase.auth.getSession().then(({ data: { session } }) => {
-          if (!session?.user && !user.username.includes('admin')) {
-            // Session is invalid and it's not a fallback user, logout
+          if (!session?.user) {
+            // Session is invalid, logout
             logout();
           }
         }).catch(error => {
@@ -230,9 +221,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const value: AuthContextType = {
     user,
     isLoading,
+    loginError,
     login,
-    logout
+    logout,
+    clearLoginError
   };
+
+  console.log('AuthProvider rendering:', { user, isLoading });
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

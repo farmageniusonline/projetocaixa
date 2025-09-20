@@ -13,8 +13,8 @@ test.describe('Upload de Planilha - Conferência Bancária', () => {
     console.log('🔐 Fazendo login...');
 
     // Preencher credenciais
-    await page.fill('input[placeholder*="nome de usuário"]', 'admin');
-    await page.fill('input[placeholder*="senha"]', 'manipularium');
+    await page.fill('input[placeholder*="nome de usuário"]', 'TEST_USER');
+    await page.fill('input[placeholder*="senha"]', 'TEST_PASSWORD');
 
     // Clicar no botão entrar
     await page.click('button:has-text("Entrar")');
@@ -160,8 +160,8 @@ test.describe('Upload de Planilha - Conferência Bancária', () => {
     await page.waitForLoadState('networkidle');
 
     // Refazer login após reload
-    await page.fill('input[placeholder*="nome de usuário"]', 'admin');
-    await page.fill('input[placeholder*="senha"]', 'manipularium');
+    await page.fill('input[placeholder*="nome de usuário"]', 'TEST_USER');
+    await page.fill('input[placeholder*="senha"]', 'TEST_PASSWORD');
     await page.click('button:has-text("Entrar")');
     await page.waitForLoadState('networkidle');
 

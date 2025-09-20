@@ -8,8 +8,7 @@ import ManipulariumLogo from '../assets/ManipulariumLogo.png';
 
 export const LoginForm: React.FC = () => {
   const navigate = useNavigate();
-  const { login, isLoading } = useAuth();
-  const [loginError, setLoginError] = useState<string>('');
+  const { login, isLoading, loginError, clearLoginError } = useAuth();
 
   const {
     register,
@@ -20,19 +19,19 @@ export const LoginForm: React.FC = () => {
   });
 
   const onSubmit = async (data: LoginFormData) => {
-    setLoginError('');
-    
+    clearLoginError(); // Clear any previous error
+
     const success = await login(data.username, data.password);
-    
+
     if (success) {
       navigate('/dashboard');
-    } else {
-      setLoginError('Credenciais inválidas. Verifique seu nome de usuário e senha.');
     }
+    // Error handling is now done in the AuthContext
   };
 
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 to-black px-4 py-12">
+  try {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 to-black px-4 py-12">
       <div className="w-full max-w-md space-y-8">
         {/* Header */}
         <div className="text-center">
@@ -154,16 +153,12 @@ export const LoginForm: React.FC = () => {
             </button>
           </form>
 
-          {/* Demo Credentials Info */}
-          <div className="mt-6 p-3 bg-indigo-900/20 border border-indigo-600/30 rounded-md">
-            <p className="text-xs text-indigo-300">
-              <strong>Credenciais de demonstração:</strong><br />
-              Usuário: admin<br />
-              Senha: manipularium
-            </p>
-          </div>
         </div>
       </div>
     </div>
-  );
+    );
+  } catch (error) {
+    console.error('LoginForm render error:', error);
+    return <div className="min-h-screen bg-red-500 flex items-center justify-center text-white">Error rendering LoginForm: {String(error)}</div>;
+  }
 };

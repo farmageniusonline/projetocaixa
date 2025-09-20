@@ -7,8 +7,8 @@ test('Upload workflow - verificar funcionamento completo', async ({ page }) => {
   // 1. Login
   await page.goto('http://localhost:5173');
   await page.waitForLoadState('networkidle');
-  await page.fill('input[placeholder*="nome de usuário"]', 'admin');
-  await page.fill('input[placeholder*="senha"]', 'manipularium');
+  await page.fill('input[placeholder*="nome de usuário"]', 'TEST_USER');
+  await page.fill('input[placeholder*="senha"]', 'TEST_PASSWORD');
   await page.click('button:has-text("Entrar")');
   await page.waitForLoadState('networkidle');
   console.log('✅ Login realizado');

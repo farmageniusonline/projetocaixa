@@ -128,6 +128,11 @@ export const VirtualizedDataTable: React.FC<VirtualizedDataTableProps> = ({
   transferredIds,
   className = ''
 }) => {
+  console.log('📊 VirtualizedDataTable renderizando:', {
+    parseResult: !!parseResult,
+    dataLength: parseResult?.data?.length || 0,
+    transferredIds: transferredIds.size
+  });
   // Filters state
   const [filters, setFilters] = usePersistentState<TableFilters>('banking_table_filters', {
     dateFilter: '',

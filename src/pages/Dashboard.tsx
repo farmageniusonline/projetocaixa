@@ -22,6 +22,7 @@ import { KeyboardShortcutsHelp } from '../components/KeyboardShortcutsHelp';
 import { performanceLogger } from '../utils/performanceLogger';
 import { useDashboardFilters, usePersistentState } from '../hooks/usePersistentState';
 import StorageAdapter from '../lib/storageAdapter';
+import { dataAdapter } from '../services/dataAdapter';
 import { ConferenceHistoryEntry } from '../services/indexedDbService';
 import { formatForDisplay, getTodayDDMMYYYY, formatDateForQuery } from '../utils/dateFormatter';
 import { LaunchTab } from '../components/LaunchTab';
@@ -49,7 +50,7 @@ export const Dashboard: React.FC = () => {
 
   // Persistent state hooks
   const [dashboardFilters, setDashboardFilters] = useDashboardFilters();
-  const [activeTab, setActiveTab] = usePersistentState<'banking' | 'cash' | 'launches' | 'actions' | 'backup'>('dashboard_active_tab', 'banking');
+  const [activeTab, setActiveTab] = usePersistentState<'banking' | 'cash' | 'launches' | 'actions' | 'backup' | 'relatorio-diario'>('dashboard_active_tab', 'banking');
   const [showHistory, setShowHistory] = usePersistentState('dashboard_show_history', false);
 
   // Local state (non-persistent)
@@ -806,7 +807,7 @@ export const Dashboard: React.FC = () => {
   }, [conferredItems, valueLookup]);
 
   // Clear messages when switching tabs or changing values
-  const handleTabChange = (tab: 'banking' | 'cash' | 'launches' | 'actions' | 'backup') => {
+  const handleTabChange = (tab: 'banking' | 'cash' | 'launches' | 'actions' | 'backup' | 'relatorio-diario') => {
     setActiveTab(tab);
     setSearchError(null);
     setSearchSuccess(null);
@@ -946,6 +947,16 @@ export const Dashboard: React.FC = () => {
                   {conferredItems.length}
                 </span>
               )}
+            </button>
+            <button
+              onClick={() => handleTabChange('relatorio-diario')}
+              className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+                activeTab === 'relatorio-diario'
+                  ? 'bg-gray-800 text-gray-100 border-b-2 border-orange-500'
+                  : 'text-gray-400 hover:text-gray-100 hover:bg-gray-800/50'
+              }`}
+            >
+              📊 Relatório Diário
             </button>
             <button
               onClick={() => handleTabChange('actions')}
@@ -1336,6 +1347,188 @@ export const Dashboard: React.FC = () => {
         ) : activeTab === 'backup' ? (
           /* Backup Layout */
           <BackupPanel className="flex-1" currentDate={operationDate} />
+        ) : activeTab === 'relatorio-diario' ? (
+          /* Relatório Diário Layout */
+          <div className="flex-1 p-6">
+            <div className="max-w-6xl mx-auto">
+              <div className="mb-6">
+                <h2 className="text-2xl font-bold text-gray-100 mb-2">📊 Relatório Diário</h2>
+                <p className="text-gray-400">Resumo das operações do dia {operationDate}</p>
+              </div>
+
+              {/* Resumo de Caixa */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                {/* Movimentação de Caixa */}
+                <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                  <div className="flex items-center mb-4">
+                    <div className="p-2 bg-green-500/20 rounded-lg mr-3">
+                      <svg className="w-6 h-6 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-200">Caixa</h3>
+                      <p className="text-sm text-gray-400">Dinheiro e moedas</p>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-gray-300">Total conferido:</span>
+                      <span className="text-green-400 font-medium">
+                        {conferredItems.length} item(s)
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-300">Valor total:</span>
+                      <span className="text-green-400 font-medium">
+                        {new Intl.NumberFormat('pt-BR', {
+                          style: 'currency',
+                          currency: 'BRL'
+                        }).format(conferredItems.reduce((sum, item) => sum + (item.value || 0), 0))}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Dados Bancários */}
+                <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                  <div className="flex items-center mb-4">
+                    <div className="p-2 bg-blue-500/20 rounded-lg mr-3">
+                      <svg className="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-200">Bancário</h3>
+                      <p className="text-sm text-gray-400">Transferências processadas</p>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-gray-300">Total processado:</span>
+                      <span className="text-blue-400 font-medium">
+                        {parseResult?.stats?.totalRows || 0} item(s)
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-300">Transferidos:</span>
+                      <span className="text-blue-400 font-medium">
+                        {transferredIds.size} item(s)
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Status das Operações */}
+                <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                  <div className="flex items-center mb-4">
+                    <div className="p-2 bg-purple-500/20 rounded-lg mr-3">
+                      <svg className="w-6 h-6 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-200">Status</h3>
+                      <p className="text-sm text-gray-400">Resumo das operações</p>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-gray-300">Data operação:</span>
+                      <span className="text-purple-400 font-medium">{operationDate}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-300">Arquivo carregado:</span>
+                      <span className="text-purple-400 font-medium">
+                        {parseResult ? '✅ Sim' : '❌ Não'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Gráfico de Resumo */}
+              <div className="bg-gray-800 rounded-lg p-6 border border-gray-700 mb-6">
+                <h3 className="text-lg font-semibold text-gray-200 mb-4">📈 Resumo Visual</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Conferência de Caixa */}
+                  <div className="bg-gray-900 rounded-lg p-4">
+                    <h4 className="text-md font-medium text-gray-300 mb-3">Conferência de Caixa</h4>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-400">Items conferidos</span>
+                        <div className="flex items-center">
+                          <div className="w-20 bg-gray-700 rounded-full h-2 mr-2">
+                            <div
+                              className="bg-green-500 h-2 rounded-full"
+                              style={{ width: conferredItems.length > 0 ? '100%' : '0%' }}
+                            ></div>
+                          </div>
+                          <span className="text-sm text-green-400 font-medium">{conferredItems.length}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Processamento Bancário */}
+                  <div className="bg-gray-900 rounded-lg p-4">
+                    <h4 className="text-md font-medium text-gray-300 mb-3">Processamento Bancário</h4>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-400">Items processados</span>
+                        <div className="flex items-center">
+                          <div className="w-20 bg-gray-700 rounded-full h-2 mr-2">
+                            <div
+                              className="bg-blue-500 h-2 rounded-full"
+                              style={{
+                                width: parseResult ?
+                                  `${Math.min(100, (transferredIds.size / parseResult.stats.totalRows) * 100)}%` :
+                                  '0%'
+                              }}
+                            ></div>
+                          </div>
+                          <span className="text-sm text-blue-400 font-medium">
+                            {parseResult ? `${transferredIds.size}/${parseResult.stats.totalRows}` : '0/0'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Botões de Ação */}
+              <div className="flex flex-wrap gap-3">
+                <button
+                  onClick={() => setActiveTab('banking')}
+                  className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                  </svg>
+                  Ver Conferência Bancária
+                </button>
+                <button
+                  onClick={() => setActiveTab('cash')}
+                  className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                  </svg>
+                  Ver Conferência de Caixa
+                </button>
+                <button
+                  onClick={() => setActiveTab('actions')}
+                  className="flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Ver Histórico de Ações
+                </button>
+              </div>
+            </div>
+          </div>
         ) : (
           /* Cash Conference Layout */
           <>

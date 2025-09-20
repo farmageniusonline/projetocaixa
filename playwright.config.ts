@@ -21,9 +21,10 @@ export default defineConfig({
 
   // Reporter configuração
   reporter: [
-    ['html', { outputFolder: 'playwright-report' }],
-    ['json', { outputFile: 'test-results.json' }],
-    ['list']
+    ['html', { outputFolder: 'playwright-report', open: 'never' }],
+    ['json', { outputFile: 'test-results/results.json' }],
+    ['list'],
+    ['junit', { outputFile: 'test-results/junit.xml' }]
   ],
 
   // Configurações globais
@@ -42,6 +43,12 @@ export default defineConfig({
 
     // Timeout para ações
     actionTimeout: 15000,
+
+    // Configurações para VS Code
+    headless: !!process.env.CI,
+
+    // Configurações de navegador
+    viewport: { width: 1280, height: 720 },
   },
 
   // Projetos (diferentes browsers)

@@ -1,0 +1,14 @@
+{
+  "playwright.testIdAttribute": "data-testid",
+  "playwright.reuseBrowser": false,
+  "playwright.showTrace": false,
+  "playwright.enableCodeLens": true,
+  "typescript.preferences.includePackageJsonAutoImports": "auto",
+  "files.associations": {
+    "*.spec.ts": "typescript"
+  },
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": "explicit"
+  },
+  "testing.automaticallyOpenPeekView": "never"
+}

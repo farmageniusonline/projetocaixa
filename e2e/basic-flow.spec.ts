@@ -9,8 +9,8 @@ test.describe('Basic Application Flow', () => {
     await expect(page.locator('text=Acesso Restrito')).toBeVisible();
 
     // Fill login form with demo credentials
-    await page.fill('input[type="text"]', 'admin');
-    await page.fill('input[type="password"]', 'manipularium');
+    await page.fill('input[type="text"]', 'TEST_USER');
+    await page.fill('input[type="password"]', 'TEST_PASSWORD');
 
     // Submit login
     await page.click('button:has-text("Entrar")');
@@ -31,8 +31,8 @@ test.describe('Basic Application Flow', () => {
     await page.waitForLoadState('networkidle');
 
     // Login
-    await page.fill('input[type="text"]', 'admin');
-    await page.fill('input[type="password"]', 'manipularium');
+    await page.fill('input[type="text"]', 'TEST_USER');
+    await page.fill('input[type="password"]', 'TEST_PASSWORD');
     await page.click('button:has-text("Entrar")');
     await page.waitForLoadState('networkidle');
 

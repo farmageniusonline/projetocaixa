@@ -1,0 +1,10 @@
+<testsuites id="" name="" tests="1" failures="0" skipped="0" errors="0" time="3.8984319999999997">
+<testsuite name="test-login-final.spec.ts" timestamp="2025-09-20T11:09:26.370Z" hostname="chromium" tests="1" failures="0" skipped="0" time="2.319" errors="0">
+<testcase name="should show &quot;Senha ou Usuario Incorretos&quot; for wrong credentials" classname="test-login-final.spec.ts" time="2.319">
+<system-out>
+<![CDATA[✅ Error message "Senha ou Usuario Incorretos" is displayed correctly
+]]>
+</system-out>
+</testcase>
+</testsuite>
+</testsuites>

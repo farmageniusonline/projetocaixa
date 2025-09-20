@@ -1,5 +1,5 @@
 import { supabaseDataService } from './supabaseDataService';
-import { indexedDbService } from './indexedDbService';
+import IndexedDbService from './indexedDbService';
 import { authService } from './authService';
 
 interface SyncStatus {
@@ -26,6 +26,7 @@ class SyncService {
 
   private syncListeners: Set<(status: SyncStatus) => void> = new Set();
   private syncInterval: NodeJS.Timeout | null = null;
+  private indexedDbService = new IndexedDbService();
 
   constructor() {
     this.initializeSync();
@@ -153,7 +154,7 @@ class SyncService {
 
     try {
       // Get pending local data from IndexedDB
-      const pendingData = await indexedDbService.getPendingUploads();
+      const pendingData = await this.indexedDbService.getPendingUploads();
 
       for (const item of pendingData) {
         try {
@@ -183,7 +184,7 @@ class SyncService {
           }
 
           // Mark as uploaded in IndexedDB
-          await indexedDbService.markAsUploaded(item.id);
+          await this.indexedDbService.markAsUploaded(item.id);
           uploadCount++;
         } catch (error) {
           errors.push(`Failed to upload ${item.type}: ${error}`);
@@ -209,7 +210,7 @@ class SyncService {
       for (const conf of conferences) {
         const confDate = new Date(conf.created_at);
         if (confDate > lastSync) {
-          await indexedDbService.saveRemoteConference(conf);
+          await this.indexedDbService.saveRemoteConference(conf);
           downloadCount++;
         }
       }
@@ -219,7 +220,7 @@ class SyncService {
       for (const entry of entries) {
         const entryDate = new Date(entry.created_at);
         if (entryDate > lastSync) {
-          await indexedDbService.saveRemoteEntry(entry);
+          await this.indexedDbService.saveRemoteEntry(entry);
           downloadCount++;
         }
       }
@@ -229,7 +230,7 @@ class SyncService {
       for (const item of notFound) {
         const itemDate = new Date(item.created_at);
         if (itemDate > lastSync) {
-          await indexedDbService.saveRemoteNotFound(item);
+          await this.indexedDbService.saveRemoteNotFound(item);
           downloadCount++;
         }
       }
@@ -242,7 +243,7 @@ class SyncService {
 
   private async countPendingChanges(): Promise<number> {
     try {
-      const pending = await indexedDbService.getPendingUploads();
+      const pending = await this.indexedDbService.getPendingUploads();
       return pending.length;
     } catch (error) {
       console.error('Error counting pending changes:', error);
@@ -268,13 +269,13 @@ class SyncService {
         }
       } catch (error) {
         // If online operation fails, queue for later
-        await indexedDbService.queueForUpload(type, data);
+        await this.indexedDbService.queueForUpload(type, data);
         this.syncStatus.pendingChanges++;
         this.notifyListeners();
       }
     } else {
       // If offline, queue for later
-      await indexedDbService.queueForUpload(type, data);
+      await this.indexedDbService.queueForUpload(type, data);
       this.syncStatus.pendingChanges++;
       this.notifyListeners();
     }
@@ -309,7 +310,7 @@ class SyncService {
 
   // Clear local cache
   async clearLocalCache() {
-    await indexedDbService.clearAll();
+    await this.indexedDbService.clearAll();
     this.syncStatus.pendingChanges = 0;
     this.syncStatus.lastSync = null;
     localStorage.removeItem('lastSyncTime');

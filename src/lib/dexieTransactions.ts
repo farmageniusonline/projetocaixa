@@ -39,7 +39,15 @@ export async function executeBankingUploadTransaction(
       throw new Error('Dados obrigatórios ausentes (fileName ou operationDate)');
     }
 
-    const result = await db.transaction(
+    // Create timeout promise
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => {
+        reject(new Error('Timeout: Transação do banco excedeu 60 segundos'));
+      }, 60000); // 60 second timeout
+    });
+
+    // Execute transaction with timeout
+    const transactionPromise = db.transaction(
       'rw',
       [db.bank_uploads, db.bank_entries],
       async (transaction) => {
@@ -84,6 +92,9 @@ export async function executeBankingUploadTransaction(
         };
       }
     );
+
+    // Race between transaction and timeout
+    const result = await Promise.race([transactionPromise, timeoutPromise]);
 
     const elapsed = Date.now() - startTime;
     console.log(`🎉 Transação bancária concluída em ${elapsed}ms`);

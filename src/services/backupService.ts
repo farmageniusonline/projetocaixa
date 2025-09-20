@@ -16,7 +16,7 @@ class BackupService {
   private bucketName = 'backups';
 
   constructor() {
-    this.initializeBucket();
+    // Bucket initialization moved to lazy loading to avoid RLS errors on startup
   }
 
   private async initializeBucket() {
@@ -33,8 +33,15 @@ class BackupService {
           fileSizeLimit: 52428800 // 50MB
         });
 
-        if (error && !error.message.includes('already exists')) {
-          console.error('Error creating bucket:', error);
+        if (error) {
+          if (error.message.includes('already exists')) {
+            console.log('Bucket already exists');
+          } else if (error.message.includes('row-level security') || error.message.includes('RLS')) {
+            console.warn('RLS policy prevents bucket creation - using existing buckets only');
+          } else {
+            console.error('Error creating bucket:', error);
+            throw error;
+          }
         }
       }
     } catch (error) {
@@ -57,6 +64,9 @@ class BackupService {
 
     try {
       console.log('Creating backup...');
+
+      // Initialize bucket on demand (lazy loading)
+      await this.initializeBucket();
 
       // Gather data
       const backupData: any = {

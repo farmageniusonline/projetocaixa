@@ -17,8 +17,10 @@ export interface User {
 export interface AuthContextType {
   user: User | null;
   isLoading: boolean;
+  loginError: string;
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
+  clearLoginError: () => void;
 }
 
 export interface LoginFormData {

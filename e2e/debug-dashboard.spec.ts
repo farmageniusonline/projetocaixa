@@ -8,8 +8,8 @@ test('debug - inspect dashboard after login', async ({ page }) => {
 
   // Login
   console.log('🔐 Logging in...');
-  await page.fill('input[placeholder*="nome de usuário"]', 'admin');
-  await page.fill('input[placeholder*="senha"]', 'manipularium');
+  await page.fill('input[placeholder*="nome de usuário"]', 'TEST_USER');
+  await page.fill('input[placeholder*="senha"]', 'TEST_PASSWORD');
   await page.click('button:has-text("Entrar")');
   await page.waitForLoadState('networkidle');
 

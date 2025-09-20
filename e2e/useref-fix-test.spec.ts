@@ -21,8 +21,8 @@ test('should verify useRef fix', async ({ page }) => {
   // Try to login to trigger Dashboard component
   const hasLoginForm = await page.locator('input[type="password"]').count() > 0;
   if (hasLoginForm) {
-    await page.fill('input[type="text"]', 'admin');
-    await page.fill('input[type="password"]', 'manipularium');
+    await page.fill('input[type="text"]', 'TEST_USER');
+    await page.fill('input[type="password"]', 'TEST_PASSWORD');
     await page.click('button:has-text("Entrar")');
     await page.waitForTimeout(3000);
   }
