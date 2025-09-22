@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate } from 'react-router-dom';
 import { loginSchema, LoginFormData } from '../schemas/loginSchema';
 import { useAuth } from '../contexts/AuthContext';
+import { sanitizeInput } from '../utils/input-sanitization';
 import ManipulariumLogo from '../assets/ManipulariumLogo.png';
 
 export const LoginForm: React.FC = () => {
@@ -21,7 +22,25 @@ export const LoginForm: React.FC = () => {
   const onSubmit = async (data: LoginFormData) => {
     clearLoginError(); // Clear any previous error
 
-    const success = await login(data.username, data.password);
+    // Sanitize inputs before sending to auth service
+    const sanitizedUsername = sanitizeInput(data.username, {
+      type: 'text',
+      maxLength: 100,
+      strictMode: true
+    });
+
+    const sanitizedPassword = sanitizeInput(data.password, {
+      type: 'text',
+      maxLength: 200,
+      strictMode: true
+    });
+
+    // Validate sanitized inputs
+    if (!sanitizedUsername || !sanitizedPassword) {
+      return; // Input sanitization failed
+    }
+
+    const success = await login(sanitizedUsername, sanitizedPassword);
 
     if (success) {
       navigate('/dashboard');

@@ -5,19 +5,17 @@ import toast from 'react-hot-toast';
 
 interface BackupPanelProps {
   className?: string;
-  currentDate?: string;
 }
 
 export const BackupPanel: React.FC<BackupPanelProps> = ({
-  className = '',
-  currentDate = formatToDDMMYYYY(new Date())
+  className = ''
 }) => {
   const [selectedDate, setSelectedDate] = useState<string>(
     formatForDateInput(new Date())
   );
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [ setSelectedFile] = useState<File | null>(null);
   const [backupPreview, setBackupPreview] = useState<DayBackup | null>(null);
   const [importResults, setImportResults] = useState<{
     imported: number;

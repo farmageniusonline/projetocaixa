@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ExportService, ExportData } from '../services/exportService';
-import { formatToDDMMYYYY } from '../utils/dateFormatter';
+
 import { performanceLogger } from '../utils/performanceLogger';
 import toast from 'react-hot-toast';
 

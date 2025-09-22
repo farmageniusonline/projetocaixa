@@ -3,8 +3,7 @@ import {
   reconciliationEngine,
   ReconciliationReport,
   ReconciliationMatch,
-  ReconciliationSource,
-  createReconciliationSource,
+  create
   exportReconciliationReport
 } from '../utils/reconciliation';
 import { ParsedRow } from '../utils/excelParser';
@@ -25,7 +24,7 @@ export const ReconciliationDashboard: React.FC<ReconciliationDashboardProps> = (
   const [isReconciling, setIsReconciling] = useState(false);
   const [report, setReport] = useState<ReconciliationReport | null>(null);
   const [selectedTab, setSelectedTab] = useState<'overview' | 'matches' | 'conflicts' | 'unmatched'>('overview');
-  const [selectedMatch, setSelectedMatch] = useState<ReconciliationMatch | null>(null);
+  const [ setSelectedMatch] = useState<ReconciliationMatch | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -34,12 +33,12 @@ export const ReconciliationDashboard: React.FC<ReconciliationDashboardProps> = (
       reconciliationEngine.removeSource('cash_register');
 
       if (bankData.length > 0) {
-        const bankSource = createReconciliationSource('bank_statement', 'Extrato Bancário', bankData);
+        const bankSource = create('bank_statement', 'Extrato Bancário', bankData);
         reconciliationEngine.addSource(bankSource);
       }
 
       if (cashData.length > 0) {
-        const cashSource = createReconciliationSource('cash_register', 'Conferência de Caixa', cashData, 'cash_register');
+        const cashSource = create('cash_register', 'Conferência de Caixa', cashData, 'cash_register');
         reconciliationEngine.addSource(cashSource);
       }
     }

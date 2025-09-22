@@ -2,8 +2,9 @@ import * as XLSX from 'xlsx';
 import * as Comlink from 'comlink';
 import { formatToDDMMYYYY } from '../utils/dateFormatter';
 import { generateOriginHashSync } from '../utils/idGenerator';
-import { formSchemas, safeValidate, formatValidationError } from '../utils/validationSchemas';
+import { formSchemas, safeValidate } from '../utils/validationSchemas';
 import { performanceLogger } from '../utils/performanceLogger';
+import { workerLogger } from '../utils/logger';
 
 // Worker message types for standardized communication
 export interface WorkerProgressMessage {
@@ -103,7 +104,7 @@ class ExcelProcessor {
   }
 
   // Detect column indices based on header row
-  private detectColumns(headerRow: any[]): {
+  private detectColumns(headerRow: unknown[]): {
     dateCol: number;
     historyCol: number;
     valueCol: number;
@@ -168,7 +169,7 @@ class ExcelProcessor {
   }
 
   // Parse date from various formats
-  private parseDate(dateValue: any): string {
+  private parseDate(dateValue: unknown): string {
     if (!dateValue) return '';
 
     try {
@@ -213,13 +214,13 @@ class ExcelProcessor {
 
       return '';
     } catch (error) {
-      console.warn('Failed to parse date:', dateValue, error);
+      workerLogger.warn('Failed to parse date', { dateValue, error });
       return '';
     }
   }
 
   // Parse value from various formats
-  private parseValue(valueStr: any): number {
+  private parseValue(valueStr: unknown): number {
     if (typeof valueStr === 'number') return valueStr;
     if (!valueStr) return 0;
 
@@ -283,7 +284,7 @@ class ExcelProcessor {
     operationDate: string,
     onProgress?: (progress: number, stage?: string, message?: string) => void
   ): Promise<ProcessedExcelData> {
-    console.log('💼 Worker: Iniciando processamento Excel...', {
+    workerLogger.info('Iniciando processamento Excel', {
       fileSize: fileBuffer.byteLength,
       operationDate
     });
@@ -295,12 +296,12 @@ class ExcelProcessor {
 
     // Add periodic heartbeat to detect hangs
     const heartbeatInterval = setInterval(() => {
-      console.log('💓 Worker: Heartbeat - processamento ativo');
+      workerLogger.debug('Heartbeat - processamento ativo');
     }, 5000);
 
     try {
       // Progress: Starting
-      console.log('💼 Worker: Progresso 5% - Iniciando leitura...');
+      workerLogger.debug('Progresso 5% - Iniciando leitura');
       onProgress?.(5, 'reading', 'Lendo arquivo Excel...');
 
       // Check for abort periodically
@@ -311,19 +312,23 @@ class ExcelProcessor {
       // Parse Excel file
       checkAbort();
       onProgress?.(15, 'parsing', 'Analisando estrutura da planilha...');
-      console.log('💼 Worker: Lendo workbook...');
+      workerLogger.debug('Lendo workbook');
       // Detectar formato do arquivo baseado no tamanho e conteúdo
       const isXlsFormat = fileBuffer.byteLength > 0 && new Uint8Array(fileBuffer).slice(0, 8).some(b => b > 127);
-      console.log('💼 Worker: Detectado formato XLS:', isXlsFormat);
+      workerLogger.debug('Detectado formato XLS', { isXlsFormat });
 
       // Wrap XLSX.read with its own timeout to detect hanging
       const xlsxReadPromise = new Promise<XLSX.WorkBook>((resolve, reject) => {
+        const configuredTimeout = import.meta.env.VITE_WORKER_TIMEOUT ?
+          parseInt(import.meta.env.VITE_WORKER_TIMEOUT) :
+          60000; // Default 60s, configurable via env
+
         const xlsxTimeout = setTimeout(() => {
-          reject(new Error('XLSX.read travou - timeout interno de 30s'));
-        }, 30000); // 30 second internal timeout
+          reject(new Error(`XLSX.read timeout após ${configuredTimeout/1000}s`));
+        }, configuredTimeout);
 
         try {
-          console.log('💼 Worker: Chamando XLSX.read...');
+          workerLogger.debug('Chamando XLSX.read');
           const workbook = XLSX.read(fileBuffer, {
             type: 'array',
             // Opções mais simples para evitar travamento
@@ -331,7 +336,7 @@ class ExcelProcessor {
             raw: false
           });
           clearTimeout(xlsxTimeout);
-          console.log('💼 Worker: XLSX.read concluído');
+          workerLogger.debug('XLSX.read concluído');
           resolve(workbook);
         } catch (error) {
           clearTimeout(xlsxTimeout);
@@ -340,10 +345,10 @@ class ExcelProcessor {
       });
 
       const workbook = await xlsxReadPromise;
-      console.log('💼 Worker: Workbook lido, sheets encontradas:', workbook.SheetNames);
+      workerLogger.debug('Workbook lido', { sheets: workbook.SheetNames });
       const sheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[sheetName];
-      console.log('💼 Worker: Worksheet selecionada:', sheetName, !!worksheet);
+      workerLogger.debug('Worksheet selecionada', { sheetName, hasWorksheet: !!worksheet });
 
       if (!worksheet) {
         throw new Error('Planilha não encontrada ou vazia');
@@ -352,10 +357,12 @@ class ExcelProcessor {
       // Convert to JSON
       checkAbort();
       onProgress?.(25, 'converting', 'Convertendo dados da planilha...');
-      console.log('💼 Worker: Convertendo worksheet para JSON...');
+      workerLogger.debug('Convertendo worksheet para JSON');
       const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-      console.log('💼 Worker: JSON convertido, linhas encontradas:', rawData.length);
-      console.log('💼 Worker: Primeiras 3 linhas:', rawData.slice(0, 3));
+      workerLogger.debug('JSON convertido', {
+        totalRows: rawData.length,
+        firstThreeRows: rawData.slice(0, 3)
+      });
 
       if (rawData.length < 2) {
         throw new Error('Planilha deve conter pelo menos uma linha de dados além do cabeçalho');
@@ -370,7 +377,7 @@ class ExcelProcessor {
 
       // Try first 5 rows to find the header row
       for (let rowIndex = 0; rowIndex < Math.min(5, rawData.length); rowIndex++) {
-        const candidateRow = rawData[rowIndex] as any[];
+        const candidateRow = rawData[rowIndex] as unknown[];
         const testColumns = this.detectColumns(candidateRow);
 
         // If we found both required columns, use this row
@@ -381,10 +388,10 @@ class ExcelProcessor {
         }
       }
 
-      console.log('💼 Worker: Colunas detectadas:', columns, 'header row:', headerRowIndex);
+      workerLogger.debug('Colunas detectadas', { columns, headerRowIndex });
 
       if (columns.dateCol === -1 || columns.historyCol === -1) {
-        console.error('💼 Worker: Erro - colunas não encontradas:', {
+        workerLogger.error('Colunas obrigatórias não encontradas', {
           columns,
           headerRowIndex,
           primeirasLinhas: rawData.slice(0, 5)
@@ -413,7 +420,7 @@ class ExcelProcessor {
           onProgress?.(progress, 'processing', `Processando linha ${i} de ${totalRows}...`);
           checkAbort();
         }
-        const row = rawData[i] as any[];
+        const row = rawData[i] as unknown[];
         if (!row || row.length === 0) continue;
 
         try {
@@ -526,14 +533,14 @@ class ExcelProcessor {
       onProgress?.(100, 'done', 'Processamento concluído!');
       performanceLogger.endOperation(parseOpId);
 
-      console.log('✅ Worker: Processamento Excel concluído com sucesso');
+      workerLogger.info('Processamento Excel concluído com sucesso');
       clearInterval(heartbeatInterval);
       return result;
 
     } catch (error) {
       performanceLogger.endOperation(parseOpId);
       clearInterval(heartbeatInterval);
-      console.error('❌ Worker: Erro no processamento Excel:', error);
+      workerLogger.error('Erro no processamento Excel', { error });
 
       // Always ensure we reject with a proper error
       if (error instanceof Error) {

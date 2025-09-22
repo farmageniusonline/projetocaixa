@@ -59,8 +59,8 @@ export const DataTable: React.FC<DataTableProps> = ({ data, stats, transferredId
       let comparison = 0;
 
       switch (sortField) {
-        case 'date':
-          const dateA = a.date.split('/').reverse().join('');
+        case 'date': {
+            const dateA = a.date.split('/').reverse().join('');
           const dateB = b.date.split('/').reverse().join('');
           comparison = dateA.localeCompare(dateB);
           break;

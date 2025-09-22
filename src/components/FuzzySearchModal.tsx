@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { smartValueSearch, FuzzyMatch, getRecentSearchSuggestions, saveRecentSearch } from '../utils/fuzzySearch';
 import { ParsedRow } from '../utils/excelParser';
+import { sanitizeInput } from '../utils/input-sanitization';
 
 interface FuzzySearchModalProps {
   isOpen: boolean;
@@ -42,9 +43,16 @@ export const FuzzySearchModal: React.FC<FuzzySearchModalProps> = ({
   }, [isOpen, initialSearchValue]);
 
   const handleSearch = (value: string) => {
-    setSearchValue(value);
-    if (value.trim()) {
-      saveRecentSearch(value);
+    // Sanitize search input before processing
+    const sanitizedValue = sanitizeInput(value, {
+      type: 'text',
+      maxLength: 100,
+      strictMode: true
+    });
+
+    setSearchValue(sanitizedValue);
+    if (sanitizedValue.trim()) {
+      saveRecentSearch(sanitizedValue);
     }
   };
 

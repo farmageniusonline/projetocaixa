@@ -1,14 +1,156 @@
 {
+  // Playwright configuration
   "playwright.testIdAttribute": "data-testid",
   "playwright.reuseBrowser": false,
   "playwright.showTrace": false,
   "playwright.enableCodeLens": true,
+
+  // TypeScript configuration for better HMR
+  "typescript.preferences.noSemicolons": "off",
+  "typescript.suggest.autoImports": true,
+  "typescript.updateImportsOnFileMove.enabled": "always",
   "typescript.preferences.includePackageJsonAutoImports": "auto",
-  "files.associations": {
-    "*.spec.ts": "typescript"
-  },
+  "typescript.preferences.useAliasesForRenames": true,
+
+  // Editor configuration optimized for React development
   "editor.codeActionsOnSave": {
+    "source.fixAll": "explicit",
+    "source.fixAll.eslint": "explicit",
     "source.organizeImports": "explicit"
   },
-  "testing.automaticallyOpenPeekView": "never"
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.tabSize": 2,
+  "editor.insertSpaces": true,
+  "editor.detectIndentation": false,
+  "editor.quickSuggestions": {
+    "strings": true
+  },
+
+  // File associations for better syntax highlighting
+  "files.associations": {
+    "*.spec.ts": "typescript",
+    "*.css": "tailwindcss",
+    "*.tsx": "typescriptreact",
+    "*.ts": "typescript"
+  },
+
+  // Tailwind CSS IntelliSense for better DX
+  "tailwindCSS.includeLanguages": {
+    "typescript": "javascript",
+    "typescriptreact": "javascript"
+  },
+  "tailwindCSS.experimental.classRegex": [
+    ["clsx\\(([^)]*)\\)", "(?:'|\"|`)([^']*)(?:'|\"|`)"],
+    ["classNames\\(([^)]*)\\)", "(?:'|\"|`)([^']*)(?:'|\"|`)"],
+    ["cn\\(([^)]*)\\)", "(?:'|\"|`)([^']*)(?:'|\"|`)"]
+  ],
+
+  // ESLint configuration
+  "eslint.workingDirectories": ["./"],
+  "eslint.validate": [
+    "javascript",
+    "javascriptreact",
+    "typescript",
+    "typescriptreact"
+  ],
+  "eslint.format.enable": true,
+
+  // Performance optimizations - exclude files from watchers
+  "files.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/coverage": true,
+    "**/.git": true,
+    "**/test-results": true,
+    "**/playwright-report": true,
+    "**/*.log": true
+  },
+
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/coverage": true,
+    "**/test-results": true,
+    "**/playwright-report": true,
+    "**/*.log": true
+  },
+
+  "files.watcherExclude": {
+    "**/node_modules/**": true,
+    "**/dist/**": true,
+    "**/coverage/**": true,
+    "**/test-results/**": true,
+    "**/playwright-report/**": true,
+    "**/.git/**": true,
+    "**/*.log": true
+  },
+
+  // Auto save for better development flow
+  "files.autoSave": "afterDelay",
+  "files.autoSaveDelay": 500,
+
+  // Testing configuration
+  "testing.automaticallyOpenPeekView": "never",
+  "testing.openTesting": "neverOpen",
+
+  // Git configuration
+  "git.autofetch": true,
+  "git.confirmSync": false,
+  "git.enableSmartCommit": true,
+
+  // JavaScript/TypeScript IntelliSense
+  "javascript.suggest.autoImports": true,
+  "javascript.updateImportsOnFileMove.enabled": "always",
+  "javascript.preferences.includePackageJsonAutoImports": "auto",
+
+  // Emmet configuration for JSX
+  "emmet.includeLanguages": {
+    "typescript": "html",
+    "typescriptreact": "html"
+  },
+
+  // Path intellisense for aliases
+  "path-intellisense.mappings": {
+    "@": "${workspaceRoot}/src",
+    "@/components": "${workspaceRoot}/src/components",
+    "@/hooks": "${workspaceRoot}/src/hooks",
+    "@/services": "${workspaceRoot}/src/services",
+    "@/utils": "${workspaceRoot}/src/utils",
+    "@/types": "${workspaceRoot}/src/types",
+    "@/test": "${workspaceRoot}/src/test"
+  },
+
+  // Terminal configuration
+  "terminal.integrated.defaultProfile.windows": "PowerShell",
+  "terminal.integrated.fontSize": 14,
+
+  // Debugging configuration
+  "debug.console.fontSize": 14,
+  "debug.console.lineHeight": 22,
+
+  // React development specific settings
+  "react.snippets.enabled": true,
+  "javascript.preferences.useAliasesForRenames": true,
+
+  // CSS/Styling
+  "css.validate": false,
+  "scss.validate": false,
+  "less.validate": false,
+
+  // Performance settings
+  "extensions.experimental.affinity": {
+    "vscodevim.vim": 1
+  },
+
+  // Bracket pair colorization
+  "editor.bracketPairColorization.enabled": true,
+  "editor.guides.bracketPairs": true,
+
+  // Minimap optimization
+  "editor.minimap.enabled": false,
+
+  // Word wrap for better readability
+  "editor.wordWrap": "on",
+  "testing.automaticallyOpenTestResults": "neverOpen"
 }

@@ -90,7 +90,7 @@ export function ProcessingSpinner({
 
         {/* Stage Indicators */}
         <div className="flex justify-center space-x-2">
-          {Object.entries(STAGE_CONFIG).map(([key, stageConfig], index) => (
+          {Object.entries(STAGE_CONFIG).map(([key,], index) => (
             <div
               key={key}
               className={`h-2 w-2 rounded-full transition-all duration-300 ${

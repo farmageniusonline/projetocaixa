@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { AuthContextType, User } from '../types/auth';
+import type { AuthContextType, User } from '../types';
 import { supabase } from '../lib/supabase';
+import { authLogger } from '../utils/logger';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -10,7 +11,7 @@ interface AuthProviderProps {
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(() => {
-    console.log('AuthProvider: Initializing user state');
+    authLogger.debug('Initializing user state');
     // Try to restore user from localStorage on initialization
     try {
       if (typeof window === 'undefined') return null;

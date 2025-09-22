@@ -47,7 +47,7 @@ export interface ReconciliationRule {
   conditions: Array<{
     field: string;
     operator: 'equals' | 'contains' | 'range' | 'regex' | 'fuzzy';
-    value: any;
+    value: unknown;
     tolerance?: number;
   }>;
   actions: Array<{
@@ -188,8 +188,8 @@ export class ReconciliationEngine {
     rules: ReconciliationRule[]
   ): ReconciliationMatch | null {
     let totalConfidence = 0;
-    let matchingFields: string[] = [];
-    let discrepancies: ReconciliationMatch['discrepancies'] = [];
+    const matchingFields: string[] = [];
+    const discrepancies: ReconciliationMatch['discrepancies'] = [];
 
     // Check value matching
     const valueDiff = Math.abs(record1.value - record2.value);
@@ -467,19 +467,19 @@ export class ReconciliationEngine {
     return commonWords / allWords.size;
   }
 
-  private getFieldValue(record: any, field: string): any {
+  private getFieldValue(record: unknown, field: string): any {
     return record[field];
   }
 
-  private evaluateCondition(condition: any, value1: any, value2: any): boolean {
+  private evaluateCondition(condition: unknown, value1: unknown, value2: unknown): boolean {
     switch (condition.operator) {
       case 'equals':
         return value1 === value2;
       case 'contains':
         return value1?.toString().includes(value2?.toString()) ||
                value2?.toString().includes(value1?.toString());
-      case 'range':
-        const numValue1 = typeof value1 === 'number' ? value1 : parseFloat(value1);
+      case 'range': {
+          const numValue1 = typeof value1 === 'number' ? value1 : parseFloat(value1);
         const numValue2 = typeof value2 === 'number' ? value2 : parseFloat(value2);
         const tolerance = condition.tolerance || 0.1;
         return Math.abs(numValue1 - numValue2) <= tolerance;

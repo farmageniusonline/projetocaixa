@@ -55,7 +55,7 @@ const valueCache = new WeakMap<any, number>();
 /**
  * Create an index of the dataset by normalized values for fast lookup
  */
-export function createValueIndex(dataset: any[]): Map<number, ValueMatch[]> {
+export function createValueIndex(dataset: unknown[]): Map<number, ValueMatch[]> {
   const index = new Map<number, ValueMatch[]>();
 
   dataset.forEach((row, rowIndex) => {
@@ -91,7 +91,7 @@ export function createValueIndex(dataset: any[]): Map<number, ValueMatch[]> {
  */
 export function searchValueMatches(
   searchValue: string | number,
-  dataset: any[],
+  dataset: unknown[],
   index?: Map<number, ValueMatch[]>
 ): ValueMatchResult {
   const normalizedInput = normalizeValue(searchValue);

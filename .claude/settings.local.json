@@ -56,7 +56,8 @@
       "Bash(npx kill-port:*)",
       "Bash(timeout 10 npm run dev)",
       "Bash(git remote add:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(tasklist:*)"
     ],
     "deny": [],
     "ask": []

@@ -69,7 +69,7 @@ const loadLaunches = (): Launch[] => {
               date = parsed;
             }
           }
-        } catch (e) {
+        } catch {
           console.warn('Invalid date value:', item.date);
         }
 
@@ -80,7 +80,7 @@ const loadLaunches = (): Launch[] => {
               timestamp = parsed;
             }
           }
-        } catch (e) {
+        } catch {
           console.warn('Invalid timestamp value:', item.timestamp);
         }
 

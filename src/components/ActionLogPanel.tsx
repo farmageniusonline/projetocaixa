@@ -24,7 +24,7 @@ export const ActionLogPanel: React.FC<ActionLogPanelProps> = ({ className = '' }
 
     try {
       const formattedDate = formatToDDMMYYYY(selectedDate);
-      let query = db.action_log.where('day').equals(formattedDate);
+      const query = db.action_log.where('day').equals(formattedDate);
 
       const logs = await query.toArray();
 

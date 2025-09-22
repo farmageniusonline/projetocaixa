@@ -12,7 +12,7 @@ export class SyncExcelProcessor {
     return Math.round(value * 100);
   }
 
-  private parseDate(dateValue: any): string {
+  private parseDate(dateValue: unknown): string {
     if (!dateValue) return '';
 
     try {
@@ -61,7 +61,7 @@ export class SyncExcelProcessor {
     }
   }
 
-  private parseValue(valueStr: any): number {
+  private parseValue(valueStr: unknown): number {
     if (typeof valueStr === 'number') return valueStr;
     if (!valueStr) return 0;
 
@@ -108,7 +108,7 @@ export class SyncExcelProcessor {
     return 'OUTROS';
   }
 
-  private detectColumns(headerRow: any[]): {
+  private detectColumns(headerRow: unknown[]): {
     dateCol: number;
     historyCol: number;
     valueCol: number;

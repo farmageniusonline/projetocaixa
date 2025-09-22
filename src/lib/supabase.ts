@@ -24,37 +24,8 @@ export const supabase = createClient(supabaseUrl, supabaseKey, {
   }
 })
 
-// Tipos para as tabelas
-export interface Profile {
-  id: string
-  username: string
-  full_name?: string
-  avatar_url?: string
-  role: 'admin' | 'user' | 'viewer'
-  is_active: boolean
-}
-
-export interface BankingTransaction {
-  id: string
-  transaction_date: string
-  payment_type: string
-  cpf?: string
-  value: number
-  original_history?: string
-  status: 'pending' | 'conferred' | 'not_found' | 'archived'
-  is_transferred: boolean
-}
-
-export interface CashConference {
-  id: string
-  conferred_value: number
-  conference_date: string
-  transaction_date: string
-  payment_type: string
-  cpf?: string
-  original_value: number
-  original_history?: string
-}
+// Import types from centralized location
+import type { Profile, BankingTransaction, CashConference } from '../types';
 
 // Funções utilitárias para interagir com o banco
 export const supabaseApi = {
@@ -136,7 +107,7 @@ export const supabaseApi = {
   // Obter conferências ativas
   getActiveConferences: async (userId: string) => {
     const { data, error } = await supabase
-      .from('cash_conference')
+      .from('cash_conferences')
       .select('*')
       .eq('user_id', userId)
       .eq('conference_status', 'active')
