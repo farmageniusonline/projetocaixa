@@ -6,6 +6,8 @@ import { formSchemas, safeValidate } from '../utils/validationSchemas';
 import { ValidationError, useFieldValidation } from './ValidationError';
 import { useKeyboardShortcuts, useFocusRestore } from '../hooks/useKeyboardShortcuts';
 import { formatCurrency } from '../utils/valueNormalizer';
+import { launchesService, Launch as SupabaseLaunch } from '../services/launchesService';
+import toast from 'react-hot-toast';
 
 type PaymentMethod =
   | 'credit_1x'
@@ -125,8 +127,18 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
   const [showUndoModal, setShowUndoModal] = useState(false);
   const [launchToUndo, setLaunchToUndo] = useState<Launch | null>(null);
 
+  // Supabase sync states
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
+
   const valueInputRef = useRef<HTMLInputElement>(null);
   const { saveFocus, restoreFocus } = useFocusRestore();
+
+  // Load launches from Supabase on component mount and when filter date changes
+  useEffect(() => {
+    loadLaunchesFromSupabase();
+  }, [loadLaunchesFromSupabase]);
 
   // Define getFilterDate early to avoid initialization errors
   const getFilterDate = useCallback(() => {
@@ -158,6 +170,86 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
     { id: 'outgoing' as PaymentMethod, label: 'Saída', group: 'outgoing' },
   ], []);
 
+  // Load launches from Supabase
+  const loadLaunchesFromSupabase = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const filterDate = getFilterDate();
+      const dateString = filterDate.toISOString().split('T')[0]; // YYYY-MM-DD
+
+      const response = await launchesService.getLaunches(dateString);
+
+      if (response.success && response.data) {
+        // Convert Supabase format to local format
+        const supabaseLaunches = response.data.map((launch: SupabaseLaunch): Launch => ({
+          id: launch.id || '',
+          date: new Date(launch.launch_date),
+          paymentType: launch.payment_type,
+          isLink: launch.is_link,
+          value: launch.value,
+          credit1x: launch.credit_1x,
+          credit2x: launch.credit_2x,
+          credit3x: launch.credit_3x,
+          credit4x: launch.credit_4x,
+          credit5x: launch.credit_5x,
+          timestamp: new Date(launch.created_at || Date.now()),
+          observation: launch.observation,
+        }));
+
+        setLaunches(supabaseLaunches);
+        setLastSyncTime(new Date());
+      }
+    } catch (error) {
+      console.error('Error loading launches from Supabase:', error);
+      toast.error('Erro ao carregar lançamentos do servidor');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [getFilterDate]);
+
+  // Sync local launches to Supabase
+  const syncToSupabase = useCallback(async () => {
+    setIsSyncing(true);
+    try {
+      const localLaunches = loadLaunches();
+
+      if (localLaunches.length === 0) {
+        toast.info('Nenhum lançamento local para sincronizar');
+        return;
+      }
+
+      // Convert local format to Supabase format
+      const launchesToSync: SupabaseLaunch[] = localLaunches.map((launch): SupabaseLaunch => ({
+        launch_date: launch.date.toISOString().split('T')[0],
+        payment_type: launch.paymentType,
+        is_link: launch.isLink,
+        value: launch.value,
+        credit_1x: launch.credit1x,
+        credit_2x: launch.credit2x,
+        credit_3x: launch.credit3x,
+        credit_4x: launch.credit4x,
+        credit_5x: launch.credit5x,
+        observation: launch.observation,
+        is_outgoing: launch.value < 0,
+      }));
+
+      const response = await launchesService.syncLocalLaunches(launchesToSync);
+
+      if (response.success) {
+        // Clear local storage after successful sync
+        localStorage.removeItem(STORAGE_KEY);
+        // Reload from Supabase
+        await loadLaunchesFromSupabase();
+        setLastSyncTime(new Date());
+      }
+    } catch (error) {
+      console.error('Error syncing to Supabase:', error);
+      toast.error('Erro ao sincronizar com o servidor');
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [loadLaunchesFromSupabase]);
+
   // Using the centralized formatCurrency function from valueNormalizer
 
   const handleValueChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -177,7 +269,7 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
     }
   };
 
-  const handleAddLaunch = useCallback(() => {
+  const handleAddLaunch = useCallback(async () => {
     setError(null);
     setSuccess(null);
 
@@ -213,49 +305,101 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
       : '';
 
     const filterDate = getFilterDate();
-    const newLaunch: Launch = {
-      id: `launch-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      date: filterDate,
-      paymentType: `${paymentTypeLabel}${linkStatus}`,
-      isLink: selectedMethod.startsWith('credit') ? isLink || false : undefined,
+
+    // Prepare launch data for Supabase
+    const launchData: SupabaseLaunch = {
+      launch_date: filterDate.toISOString().split('T')[0],
+      payment_type: `${paymentTypeLabel}${linkStatus}`,
+      is_link: selectedMethod.startsWith('credit') ? isLink || false : false,
       value: numericValue,
-      timestamp: new Date(),
+      credit_1x: selectedMethod === 'credit_1x' ? Math.abs(numericValue) : 0,
+      credit_2x: selectedMethod === 'credit_2x' ? Math.abs(numericValue) : 0,
+      credit_3x: selectedMethod === 'credit_3x' ? Math.abs(numericValue) : 0,
+      credit_4x: selectedMethod === 'credit_4x' ? Math.abs(numericValue) : 0,
+      credit_5x: selectedMethod === 'credit_5x' ? Math.abs(numericValue) : 0,
       observation: selectedMethod === 'outgoing' ? observation.trim() : undefined,
+      is_outgoing: selectedMethod === 'outgoing',
     };
 
-    // Para cartões de crédito, usar sempre valor positivo nas parcelas específicas
-    const creditValue = Math.abs(numericValue);
-    if (selectedMethod === 'credit_1x') newLaunch.credit1x = creditValue;
-    if (selectedMethod === 'credit_2x') newLaunch.credit2x = creditValue;
-    if (selectedMethod === 'credit_3x') newLaunch.credit3x = creditValue;
-    if (selectedMethod === 'credit_4x') newLaunch.credit4x = creditValue;
-    if (selectedMethod === 'credit_5x') newLaunch.credit5x = creditValue;
+    // Save to Supabase
+    setIsSyncing(true);
+    try {
+      const response = await launchesService.createLaunch(launchData);
 
-    const updatedLaunches = [newLaunch, ...launches];
-    setLaunches(updatedLaunches);
-    saveLaunches(updatedLaunches);
+      if (response.success && response.data) {
+        // Convert back to local format and add to state
+        const newLaunch: Launch = {
+          id: response.data.id || '',
+          date: new Date(response.data.launch_date),
+          paymentType: response.data.payment_type,
+          isLink: response.data.is_link,
+          value: response.data.value,
+          credit1x: response.data.credit_1x,
+          credit2x: response.data.credit_2x,
+          credit3x: response.data.credit_3x,
+          credit4x: response.data.credit_4x,
+          credit5x: response.data.credit_5x,
+          timestamp: new Date(response.data.created_at || Date.now()),
+          observation: response.data.observation,
+        };
 
-    // Send to Conferência de Caixa
-    const conferenceItem = {
-      id: newLaunch.id,
-      date: formatForDisplay(newLaunch.date),
-      description: newLaunch.paymentType,
-      value: newLaunch.value,
-      originalHistory: 'Manual',
-      source: 'manual',
-      cpf: '',
-      conferredAt: new Date(),
-      conferredId: newLaunch.id,
-      observation: newLaunch.observation
-    };
+        const updatedLaunches = [newLaunch, ...launches];
+        setLaunches(updatedLaunches);
 
-    // Check for duplicates before adding
-    const isDuplicate = conferredItems.some(item => item.conferredId === newLaunch.id);
-    if (!isDuplicate) {
-      onLaunchAdded(conferenceItem);
-      setSuccess('Lançamento criado e enviado para Conferência de Caixa');
-    } else {
-      setSuccess('Lançamento adicionado com sucesso');
+        // Send to Conferência de Caixa
+        const conferenceItem = {
+          id: newLaunch.id,
+          date: formatForDisplay(newLaunch.date),
+          description: newLaunch.paymentType,
+          value: newLaunch.value,
+          originalHistory: 'Manual',
+          source: 'manual',
+          cpf: '',
+          conferredAt: new Date(),
+          conferredId: newLaunch.id,
+          observation: newLaunch.observation
+        };
+
+        // Check for duplicates before adding
+        const isDuplicate = conferredItems.some(item => item.conferredId === newLaunch.id);
+        if (!isDuplicate) {
+          onLaunchAdded(conferenceItem);
+          setSuccess('Lançamento criado e enviado para Conferência de Caixa');
+        } else {
+          setSuccess('Lançamento salvo no Supabase com sucesso');
+        }
+      } else {
+        throw new Error(response.error || 'Erro ao salvar lançamento');
+      }
+    } catch (error) {
+      console.error('Error saving launch:', error);
+      // Fallback: save locally if Supabase fails
+      const localLaunch: Launch = {
+        id: `launch-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        date: filterDate,
+        paymentType: `${paymentTypeLabel}${linkStatus}`,
+        isLink: selectedMethod.startsWith('credit') ? isLink || false : undefined,
+        value: numericValue,
+        timestamp: new Date(),
+        observation: selectedMethod === 'outgoing' ? observation.trim() : undefined,
+      };
+
+      // Para cartões de crédito, usar sempre valor positivo nas parcelas específicas
+      const creditValue = Math.abs(numericValue);
+      if (selectedMethod === 'credit_1x') localLaunch.credit1x = creditValue;
+      if (selectedMethod === 'credit_2x') localLaunch.credit2x = creditValue;
+      if (selectedMethod === 'credit_3x') localLaunch.credit3x = creditValue;
+      if (selectedMethod === 'credit_4x') localLaunch.credit4x = creditValue;
+      if (selectedMethod === 'credit_5x') localLaunch.credit5x = creditValue;
+
+      const updatedLaunches = [localLaunch, ...launches];
+      setLaunches(updatedLaunches);
+      saveLaunches(updatedLaunches);
+
+      toast.error('Erro ao salvar no servidor. Lançamento salvo localmente.');
+      setError('Lançamento salvo localmente. Sincronize quando a conexão for restabelecida.');
+    } finally {
+      setIsSyncing(false);
     }
 
     setValue('');
@@ -595,10 +739,20 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
 
               <button
                 onClick={handleAddLaunch}
-                disabled={!selectedMethod || !value || (selectedMethod === 'outgoing' && !observation.trim())}
-                className="w-full px-3 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                disabled={!selectedMethod || !value || (selectedMethod === 'outgoing' && !observation.trim()) || isSyncing}
+                className="w-full px-3 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center space-x-2"
               >
-                Adicionar
+                {isSyncing ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>Salvando...</span>
+                  </>
+                ) : (
+                  <span>Adicionar</span>
+                )}
               </button>
             </div>
 
@@ -696,7 +850,63 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
                 <h2 className="text-lg font-semibold text-gray-100">Lançamentos Manuais</h2>
                 <p className="text-sm text-gray-400 mt-1">
                   {filteredLaunches.length} lançamento(s) para {formatForDisplay(filterDate)}
+                  {lastSyncTime && (
+                    <span className="ml-2 text-green-400">
+                      • Última sincronização: {lastSyncTime.toLocaleTimeString()}
+                    </span>
+                  )}
                 </p>
+              </div>
+
+              {/* Sync Controls */}
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={loadLaunchesFromSupabase}
+                  disabled={isLoading}
+                  className="px-3 py-1 text-xs bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white rounded-md transition-colors flex items-center space-x-1"
+                  title="Carregar do Supabase"
+                >
+                  {isLoading ? (
+                    <>
+                      <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      <span>Carregando</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      <span>Carregar</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  onClick={syncToSupabase}
+                  disabled={isSyncing || loadLaunches().length === 0}
+                  className="px-3 py-1 text-xs bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white rounded-md transition-colors flex items-center space-x-1"
+                  title="Sincronizar dados locais para Supabase"
+                >
+                  {isSyncing ? (
+                    <>
+                      <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      <span>Sincronizando</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                      </svg>
+                      <span>Sync Local</span>
+                    </>
+                  )}
+                </button>
               </div>
               <ExportButtons
                 data={{
