@@ -1,0 +1,38 @@
+# Vercel
+.vercel
+
+# Build outputs
+dist/
+build/
+
+# Dependencies
+node_modules/
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+
+# Test results
+test-results/
+playwright-report/
+*.png
+
+# Temporary files
+*.tmp
+*.temp

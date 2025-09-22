@@ -57,7 +57,8 @@
       "Bash(timeout 10 npm run dev)",
       "Bash(git remote add:*)",
       "Bash(rm:*)",
-      "Bash(tasklist:*)"
+      "Bash(tasklist:*)",
+      "Bash(vercel:*)"
     ],
     "deny": [],
     "ask": []
