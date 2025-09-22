@@ -3,9 +3,9 @@
  */
 
 import { sanitizeInput, validateInputSafety, sanitizeObject } from './input-sanitization';
-import { logger } from './logger';
+import { createModuleLogger } from './logger';
 
-const securityLogger = logger.createModule('SECURITY_MIDDLEWARE');
+const securityLogger = createModuleLogger('SECURITY_MIDDLEWARE');
 
 // ==========================================
 // Request Sanitization Middleware

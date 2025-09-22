@@ -29,6 +29,9 @@ function AppRoutes() {
           {storageStatus.usingIndexedDB && (
             <p className="text-green-400 text-sm mt-2">IndexedDB disponível</p>
           )}
+          {storageStatus.error && (
+            <p className="text-red-400 text-sm mt-2">Erro: {storageStatus.error}</p>
+          )}
         </div>
       </div>
     );

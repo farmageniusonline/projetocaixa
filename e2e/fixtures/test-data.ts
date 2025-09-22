@@ -385,10 +385,4 @@ export class AccessibilityFixture {
   }
 }
 
-export {
-  DatabaseFixture,
-  AuthFixture,
-  PerformanceFixture,
-  ErrorFixture,
-  AccessibilityFixture
-};
+// All fixtures are already exported as classes above

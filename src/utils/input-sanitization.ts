@@ -2,10 +2,10 @@
  * Comprehensive input sanitization utilities for security
  */
 
-import { logger } from './logger';
+import { createModuleLogger } from './logger';
 
 // Security logger for input sanitization
-const securityLogger = logger.createModule('SECURITY');
+const securityLogger = createModuleLogger('SECURITY');
 
 // ==========================================
 // Basic Sanitization Functions

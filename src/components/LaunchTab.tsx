@@ -5,6 +5,7 @@ import { ExportButtons } from './ExportButtons';
 import { formSchemas, safeValidate } from '../utils/validationSchemas';
 import { ValidationError, useFieldValidation } from './ValidationError';
 import { useKeyboardShortcuts, useFocusRestore } from '../hooks/useKeyboardShortcuts';
+import { formatCurrency } from '../utils/valueNormalizer';
 
 type PaymentMethod =
   | 'credit_1x'
@@ -152,15 +153,7 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
     { id: 'deposit' as PaymentMethod, label: 'Depósito', group: 'other' },
   ], []);
 
-  const formatCurrency = (val: string): string => {
-    const numericValue = val.replace(/[^\d,]/g, '').replace(',', '.');
-    const num = parseFloat(numericValue);
-    if (isNaN(num)) return '';
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    }).format(num);
-  };
+  // Using the centralized formatCurrency function from valueNormalizer
 
   const handleValueChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const input = e.target.value;
@@ -754,22 +747,22 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right font-mono">
-                        {launch.credit1x ? formatCurrency(launch.credit1x.toString()) : '-'}
+                        {launch.credit1x ? formatCurrency(launch.credit1x) : '-'}
                       </td>
                       <td className="px-6 py-4 text-right font-mono">
-                        {launch.credit2x ? formatCurrency(launch.credit2x.toString()) : '-'}
+                        {launch.credit2x ? formatCurrency(launch.credit2x) : '-'}
                       </td>
                       <td className="px-6 py-4 text-right font-mono">
-                        {launch.credit3x ? formatCurrency(launch.credit3x.toString()) : '-'}
+                        {launch.credit3x ? formatCurrency(launch.credit3x) : '-'}
                       </td>
                       <td className="px-6 py-4 text-right font-mono">
-                        {launch.credit4x ? formatCurrency(launch.credit4x.toString()) : '-'}
+                        {launch.credit4x ? formatCurrency(launch.credit4x) : '-'}
                       </td>
                       <td className="px-6 py-4 text-right font-mono">
-                        {launch.credit5x ? formatCurrency(launch.credit5x.toString()) : '-'}
+                        {launch.credit5x ? formatCurrency(launch.credit5x) : '-'}
                       </td>
                       <td className="px-6 py-4 text-right font-mono text-green-400">
-                        {formatCurrency(launch.value.toString())}
+                        {formatCurrency(launch.value)}
                       </td>
                       <td className="px-6 py-4 text-center">
                         <button
@@ -791,22 +784,22 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
                       Total Geral
                     </td>
                     <td className="px-6 py-3 text-right font-mono font-semibold">
-                      {totals.credit1x > 0 ? formatCurrency(totals.credit1x.toString()) : '-'}
+                      {totals.credit1x > 0 ? formatCurrency(totals.credit1x) : '-'}
                     </td>
                     <td className="px-6 py-3 text-right font-mono font-semibold">
-                      {totals.credit2x > 0 ? formatCurrency(totals.credit2x.toString()) : '-'}
+                      {totals.credit2x > 0 ? formatCurrency(totals.credit2x) : '-'}
                     </td>
                     <td className="px-6 py-3 text-right font-mono font-semibold">
-                      {totals.credit3x > 0 ? formatCurrency(totals.credit3x.toString()) : '-'}
+                      {totals.credit3x > 0 ? formatCurrency(totals.credit3x) : '-'}
                     </td>
                     <td className="px-6 py-3 text-right font-mono font-semibold">
-                      {totals.credit4x > 0 ? formatCurrency(totals.credit4x.toString()) : '-'}
+                      {totals.credit4x > 0 ? formatCurrency(totals.credit4x) : '-'}
                     </td>
                     <td className="px-6 py-3 text-right font-mono font-semibold">
-                      {totals.credit5x > 0 ? formatCurrency(totals.credit5x.toString()) : '-'}
+                      {totals.credit5x > 0 ? formatCurrency(totals.credit5x) : '-'}
                     </td>
                     <td className="px-6 py-3 text-right font-mono font-semibold text-green-400">
-                      {formatCurrency(totals.general.toString())}
+                      {formatCurrency(totals.general)}
                     </td>
                     <td className="px-6 py-3"></td>
                   </tr>
@@ -838,7 +831,7 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
                   <div className="bg-gray-900 rounded p-3 mb-4 border border-gray-700">
                     <div className="text-xs text-gray-400">
                       <p>Tipo: {launchToUndo.paymentType}</p>
-                      <p>Valor: {formatCurrency(launchToUndo.value.toString())}</p>
+                      <p>Valor: {formatCurrency(launchToUndo.value)}</p>
                       <p>Data: {formatForDisplay(launchToUndo.date)}</p>
                     </div>
                   </div>

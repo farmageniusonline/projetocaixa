@@ -72,7 +72,7 @@ export const LoginForm: React.FC = () => {
 
         {/* Login Form */}
         <div className="bg-gray-800 rounded-lg shadow-2xl border border-gray-700 px-6 py-8">
-          <form className="space-y-6" onSubmit={handleSubmit(onSubmit)}>
+          <form className="space-y-6" onSubmit={handleSubmit(onSubmit)} data-testid="login-form">
             {/* Username Field */}
             <div>
               <label 
@@ -87,6 +87,7 @@ export const LoginForm: React.FC = () => {
                 name="username"
                 type="text"
                 autoComplete="username"
+                data-testid="username-input"
                 aria-describedby={errors.username ? 'username-error' : undefined}
                 className={`w-full px-3 py-2 border rounded-md shadow-sm bg-gray-700 text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors ${
                   errors.username ? 'border-red-400' : 'border-gray-600'
@@ -114,6 +115,7 @@ export const LoginForm: React.FC = () => {
                 name="password"
                 type="password"
                 autoComplete="current-password"
+                data-testid="password-input"
                 aria-describedby={errors.password ? 'password-error' : undefined}
                 className={`w-full px-3 py-2 border rounded-md shadow-sm bg-gray-700 text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors ${
                   errors.password ? 'border-red-400' : 'border-gray-600'
@@ -140,6 +142,7 @@ export const LoginForm: React.FC = () => {
             <button
               type="submit"
               disabled={isLoading}
+              data-testid="login-button"
               className="w-full flex justify-center items-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
             >
               {isLoading ? (

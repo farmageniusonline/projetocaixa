@@ -4,9 +4,9 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import { sanitizeInput, validateInputSafety } from '../utils/input-sanitization';
-import { logger } from '../utils/logger';
+import { createModuleLogger } from '../utils/logger';
 
-const securityLogger = logger.createModule('INPUT_SECURITY');
+const securityLogger = createModuleLogger('INPUT_SECURITY');
 
 export interface SafeInputOptions {
   type?: 'text' | 'html' | 'email' | 'url' | 'cpf' | 'cnpj' | 'currency' | 'phone' | 'filename' | 'date';

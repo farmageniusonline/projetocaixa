@@ -41,7 +41,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setLoginError(''); // Clear previous errors
 
     try {
-      // Try Supabase authentication first
+      // Try Supabase authentication
       const { data, error } = await supabase.auth.signInWithPassword({
         email: username.includes('@') ? username : `${username}@manipularium.com`,
         password: password
@@ -130,93 +130,113 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Check for existing session on mount
   useEffect(() => {
-    // If user is already loaded from localStorage, just check if session is still valid
-    if (user) {
-      // Quick validation - if we have a user from localStorage, we can show the dashboard immediately
-      // and validate the session in background
-      setIsLoading(false);
+    let mounted = true;
+    let subscription: any = null;
 
-      // Background session validation (optional) - only if Supabase is configured
+    const initializeAuth = async () => {
       try {
-        supabase.auth.getSession().then(({ data: { session } }) => {
-          if (!session?.user) {
-            // Session is invalid, logout
-            logout();
+        // If user is already loaded from localStorage, show dashboard immediately
+        if (user) {
+          if (mounted) setIsLoading(false);
+
+          // Background session validation
+          try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session?.user && mounted) {
+              // Session is invalid, logout
+              logout();
+            }
+          } catch (error) {
+            console.warn('Session validation failed:', error);
           }
-        }).catch(error => {
-          console.warn('Supabase session check failed:', error);
-          // Continue with local auth if Supabase fails
-        });
-      } catch (error) {
-        console.warn('Supabase not available:', error);
-      }
-      return;
-    }
+          return;
+        }
 
-    // Get initial session only if no user in localStorage
-    try {
-      supabase.auth.getSession().then(({ data: { session } }) => {
+        // Get initial session
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+        if (sessionError) {
+          console.warn('Error getting session:', sessionError);
+          if (mounted) setIsLoading(false);
+          return;
+        }
+
         if (session?.user) {
-          // Get user profile
-          supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', session.user.id)
-            .single()
-            .then(({ data: profile }) => {
-              const userData: User = {
-                username: profile?.username || session.user.email?.split('@')[0] || 'user',
-                id: session.user.id,
-                email: session.user.email,
-                profile: profile
-              };
+          try {
+            // Get user profile
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', session.user.id)
+              .single();
+
+            const userData: User = {
+              username: profile?.username || session.user.email?.split('@')[0] || 'user',
+              id: session.user.id,
+              email: session.user.email,
+              profile: profile
+            };
+
+            if (mounted) {
               setUser(userData);
-              // Persist user to localStorage
               localStorage.setItem('auth_user', JSON.stringify(userData));
-            });
+            }
+          } catch (profileError) {
+            console.warn('Error fetching profile:', profileError);
+          }
         }
-        setIsLoading(false);
-      }).catch(error => {
-        console.warn('Supabase session initialization failed:', error);
-        setIsLoading(false);
-      });
-    } catch (error) {
-      console.warn('Supabase not available:', error);
-      setIsLoading(false);
-    }
 
-    // Listen for auth changes - with error handling
-    try {
-      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-        if (event === 'SIGNED_IN' && session?.user) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', session.user.id)
-            .single();
+        if (mounted) setIsLoading(false);
 
-          const userData: User = {
-            username: profile?.username || session.user.email?.split('@')[0] || 'user',
-            id: session.user.id,
-            email: session.user.email,
-            profile: profile
-          };
-          setUser(userData);
-          // Persist user to localStorage
-          localStorage.setItem('auth_user', JSON.stringify(userData));
-        } else if (event === 'SIGNED_OUT') {
-          setUser(null);
-          // Remove user from localStorage
-          localStorage.removeItem('auth_user');
-          localStorage.removeItem('dashboard_filters'); // Clear filters on logout
-        }
-        setIsLoading(false);
-      });
+        // Setup auth state listener
+        const { data: { subscription: authSubscription } } = supabase.auth.onAuthStateChange(
+          async (event, session) => {
+            if (!mounted) return;
 
-      return () => subscription.unsubscribe();
-    } catch (error) {
-      console.warn('Supabase auth listener failed:', error);
-    }
+            try {
+              if (event === 'SIGNED_IN' && session?.user) {
+                const { data: profile } = await supabase
+                  .from('profiles')
+                  .select('*')
+                  .eq('id', session.user.id)
+                  .single();
+
+                const userData: User = {
+                  username: profile?.username || session.user.email?.split('@')[0] || 'user',
+                  id: session.user.id,
+                  email: session.user.email,
+                  profile: profile
+                };
+                setUser(userData);
+                localStorage.setItem('auth_user', JSON.stringify(userData));
+              } else if (event === 'SIGNED_OUT') {
+                setUser(null);
+                localStorage.removeItem('auth_user');
+                localStorage.removeItem('dashboard_filters');
+              }
+              setIsLoading(false);
+            } catch (error) {
+              console.warn('Auth state change error:', error);
+              setIsLoading(false);
+            }
+          }
+        );
+
+        subscription = authSubscription;
+      } catch (error) {
+        console.error('Auth initialization error:', error);
+        if (mounted) setIsLoading(false);
+      }
+    };
+
+    initializeAuth();
+
+    return () => {
+      mounted = false;
+      if (subscription) {
+        subscription.unsubscribe();
+      }
+    };
   }, []);
 
   const value: AuthContextType = {
