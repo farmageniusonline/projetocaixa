@@ -16,7 +16,8 @@ type PaymentMethod =
   | 'debit'
   | 'cash'
   | 'coins'
-  | 'deposit';
+  | 'deposit'
+  | 'outgoing';
 
 interface Launch {
   id: string;
@@ -30,6 +31,7 @@ interface Launch {
   credit4x?: number;
   credit5x?: number;
   timestamp: Date;
+  observation?: string; // Campo observação para saídas
 }
 
 interface ConferenceItem {
@@ -43,6 +45,7 @@ interface ConferenceItem {
   conferredAt: Date;
   conferredId: string;
   remove?: boolean;
+  observation?: string; // Campo observação para saídas
 }
 
 interface LaunchTabProps {
@@ -111,6 +114,7 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
   const [isLink, setIsLink] = useState<boolean | null>(null);
   const [value, setValue] = useState('');
+  const [observation, setObservation] = useState('');
   const [launches, setLaunches] = useState<Launch[]>(loadLaunches);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -151,6 +155,7 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
     { id: 'cash' as PaymentMethod, label: 'Dinheiro', group: 'other' },
     { id: 'coins' as PaymentMethod, label: 'Moedas', group: 'other' },
     { id: 'deposit' as PaymentMethod, label: 'Depósito', group: 'other' },
+    { id: 'outgoing' as PaymentMethod, label: 'Saída', group: 'outgoing' },
   ], []);
 
   // Using the centralized formatCurrency function from valueNormalizer
@@ -186,6 +191,11 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
       return;
     }
 
+    if (selectedMethod === 'outgoing' && !observation.trim()) {
+      setError('Observação é obrigatória para saídas');
+      return;
+    }
+
     // Validate value using Zod
     const valueValidation = safeValidate(formSchemas.conferenceValue, { value });
     if (!valueValidation.success) {
@@ -193,7 +203,9 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
       return;
     }
 
-    const numericValue = valueValidation.data.value;
+    const baseNumericValue = valueValidation.data.value;
+    // Para saídas, converter para valor negativo
+    const numericValue = selectedMethod === 'outgoing' ? -Math.abs(baseNumericValue) : baseNumericValue;
 
     const paymentTypeLabel = paymentMethods.find(m => m.id === selectedMethod)?.label || '';
     const linkStatus = selectedMethod.startsWith('credit') && isLink !== null
@@ -208,13 +220,16 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
       isLink: selectedMethod.startsWith('credit') ? isLink || false : undefined,
       value: numericValue,
       timestamp: new Date(),
+      observation: selectedMethod === 'outgoing' ? observation.trim() : undefined,
     };
 
-    if (selectedMethod === 'credit_1x') newLaunch.credit1x = numericValue;
-    if (selectedMethod === 'credit_2x') newLaunch.credit2x = numericValue;
-    if (selectedMethod === 'credit_3x') newLaunch.credit3x = numericValue;
-    if (selectedMethod === 'credit_4x') newLaunch.credit4x = numericValue;
-    if (selectedMethod === 'credit_5x') newLaunch.credit5x = numericValue;
+    // Para cartões de crédito, usar sempre valor positivo nas parcelas específicas
+    const creditValue = Math.abs(numericValue);
+    if (selectedMethod === 'credit_1x') newLaunch.credit1x = creditValue;
+    if (selectedMethod === 'credit_2x') newLaunch.credit2x = creditValue;
+    if (selectedMethod === 'credit_3x') newLaunch.credit3x = creditValue;
+    if (selectedMethod === 'credit_4x') newLaunch.credit4x = creditValue;
+    if (selectedMethod === 'credit_5x') newLaunch.credit5x = creditValue;
 
     const updatedLaunches = [newLaunch, ...launches];
     setLaunches(updatedLaunches);
@@ -230,7 +245,8 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
       source: 'manual',
       cpf: '',
       conferredAt: new Date(),
-      conferredId: newLaunch.id
+      conferredId: newLaunch.id,
+      observation: newLaunch.observation
     };
 
     // Check for duplicates before adding
@@ -243,13 +259,14 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
     }
 
     setValue('');
+    setObservation('');
 
     if (valueInputRef.current) {
       valueInputRef.current.focus();
     }
 
     setTimeout(() => setSuccess(null), 3000);
-  }, [selectedMethod, isLink, value, getFilterDate, launches, conferredItems, onLaunchAdded]);
+  }, [selectedMethod, isLink, value, observation, getFilterDate, launches, conferredItems, onLaunchAdded, paymentMethods]);
 
   const handleClearFilters = useCallback(() => {
     setPaymentTypeFilter('all');
@@ -288,6 +305,10 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
 
     if (!method.startsWith('credit')) {
       setIsLink(null);
+    }
+
+    if (method !== 'outgoing') {
+      setObservation('');
     }
   };
 
@@ -379,6 +400,8 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
         typeMatches = launchPaymentType.includes('moedas');
       } else if (filterType === 'deposit') {
         typeMatches = launchPaymentType.includes('depósito') || launchPaymentType.includes('deposito');
+      } else if (filterType === 'outgoing') {
+        typeMatches = launchPaymentType.includes('saída') || launchPaymentType.includes('saida');
       }
     }
 
@@ -432,9 +455,9 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
   }, [handleAddLaunch]);
 
   return (
-    <>
-      {/* Left Sidebar */}
-      <aside className="w-80 bg-gray-900 border-r border-gray-800 sticky top-32 self-start">
+    <div className="flex h-[calc(100vh-8rem)]">
+      {/* Left Sidebar - Fixed */}
+      <aside className="w-72 bg-gray-900 border-r border-gray-800 flex-shrink-0 h-[calc(100vh-8rem)] overflow-y-auto">
         <div className="p-4 space-y-4">
           {/* Payment Method Selection */}
           <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
@@ -508,6 +531,25 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
                 </button>
               ))}
             </div>
+
+            {/* Outgoing (Saída) */}
+            <div className="space-y-2">
+              <p className="text-xs text-gray-400 uppercase tracking-wider">Saídas</p>
+              {paymentMethods.filter(m => m.group === 'outgoing').map(method => (
+                <button
+                  key={method.id}
+                  onClick={() => handleMethodSelect(method.id)}
+                  className={`w-full text-left px-3 py-2 text-sm rounded-md transition-colors ${
+                    selectedMethod === method.id
+                      ? 'bg-red-600 text-white'
+                      : 'bg-red-900/20 text-red-300 border border-red-600 hover:bg-red-900/30 hover:text-red-200'
+                  }`}
+                  aria-label={method.label}
+                >
+                  {method.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Value Input */}
@@ -532,9 +574,28 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
                 aria-label="Valor do lançamento"
               />
               <ValidationError error={error} fieldId="launch-value-input" />
+
+              {/* Observation Field for Outgoing */}
+              {selectedMethod === 'outgoing' && (
+                <div className="space-y-2">
+                  <label className="text-xs text-gray-400 uppercase tracking-wider">
+                    Observação *
+                  </label>
+                  <input
+                    id="launch-observation-input"
+                    type="text"
+                    placeholder="Digite o motivo da saída (ex: Serviço X)"
+                    value={observation}
+                    onChange={(e) => setObservation(e.target.value)}
+                    className="w-full px-3 py-2 text-sm text-gray-100 bg-gray-700 border border-gray-600 rounded-md focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                    aria-label="Observação da saída"
+                  />
+                </div>
+              )}
+
               <button
                 onClick={handleAddLaunch}
-                disabled={!selectedMethod || !value}
+                disabled={!selectedMethod || !value || (selectedMethod === 'outgoing' && !observation.trim())}
                 className="w-full px-3 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Adicionar
@@ -627,9 +688,9 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
       </aside>
 
       {/* Main Content - Table */}
-      <main className="flex-1 bg-gray-950 p-6 min-h-[calc(100vh-8rem)] min-w-0">
-        <div className="bg-gray-800 rounded-lg shadow-2xl border border-gray-700 h-full flex flex-col">
-          <div className="p-4 border-b border-gray-700">
+      <main className="flex-1 bg-gray-950 min-w-0 h-[calc(100vh-8rem)] flex flex-col">
+        <div className="bg-gray-800 shadow-2xl border border-gray-700 flex-1 flex flex-col min-h-0">
+          <div className="p-3 border-b border-gray-700">
             <div className="flex justify-between items-center">
               <div>
                 <h2 className="text-lg font-semibold text-gray-100">Lançamentos Manuais</h2>
@@ -658,7 +719,7 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
           </div>
 
           {/* Payment Type Filter Block */}
-          <div className="bg-gray-800 border-b border-gray-700 p-4">
+          <div className="bg-gray-800 border-b border-gray-700 p-3">
             <div className="flex flex-wrap gap-4">
               <div className="flex-1 min-w-[200px]">
                 <label className="block text-xs text-gray-400 mb-1">Filtrar por Tipo de Pagamento</label>
@@ -677,6 +738,7 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
                   <option value="cash">Dinheiro</option>
                   <option value="coins">Moedas</option>
                   <option value="deposit">Depósito</option>
+                  <option value="outgoing">Saída</option>
                 </select>
               </div>
               <div className="flex items-end">
@@ -691,8 +753,8 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
 
           </div>
 
-          <div className="flex-1 overflow-auto">
-            <table className="w-full text-sm text-left text-gray-300">
+          <div className="flex-1 overflow-auto min-h-0" style={{ height: 'calc(100vh - 200px)' }}>
+            <table className="w-full text-sm text-left text-gray-300" style={{ height: '100%', tableLayout: 'fixed' }}>
               <thead className="text-xs text-gray-400 uppercase bg-gray-900 sticky top-0">
                 <tr>
                   <th
@@ -725,13 +787,14 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
                       </svg>
                     </div>
                   </th>
+                  <th scope="col" className="px-6 py-3">Observação</th>
                   <th scope="col" className="px-6 py-3 text-center">Ações</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody style={{ minHeight: 'calc(100vh - 300px)', display: 'table-row-group' }}>
                 {filteredLaunches.length === 0 ? (
-                  <tr>
-                    <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
+                  <tr style={{ height: 'calc(100vh - 300px)' }}>
+                    <td colSpan={10} className="px-6 py-8 text-center text-gray-500" style={{ verticalAlign: 'middle' }}>
                       Nenhum lançamento registrado para esta data
                     </td>
                   </tr>
@@ -761,8 +824,17 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
                       <td className="px-6 py-4 text-right font-mono">
                         {launch.credit5x ? formatCurrency(launch.credit5x) : '-'}
                       </td>
-                      <td className="px-6 py-4 text-right font-mono text-green-400">
+                      <td className={`px-6 py-4 text-right font-mono ${launch.value < 0 ? 'text-red-400' : 'text-green-400'}`}>
                         {formatCurrency(launch.value)}
+                      </td>
+                      <td className="px-6 py-4">
+                        {launch.observation ? (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-900/20 text-yellow-300 border border-yellow-600">
+                            {launch.observation}
+                          </span>
+                        ) : (
+                          <span className="text-gray-500">-</span>
+                        )}
                       </td>
                       <td className="px-6 py-4 text-center">
                         <button
@@ -798,9 +870,10 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
                     <td className="px-6 py-3 text-right font-mono font-semibold">
                       {totals.credit5x > 0 ? formatCurrency(totals.credit5x) : '-'}
                     </td>
-                    <td className="px-6 py-3 text-right font-mono font-semibold text-green-400">
+                    <td className={`px-6 py-3 text-right font-mono font-semibold ${totals.general < 0 ? 'text-red-400' : 'text-green-400'}`}>
                       {formatCurrency(totals.general)}
                     </td>
+                    <td className="px-6 py-3"></td>
                     <td className="px-6 py-3"></td>
                   </tr>
                 </tfoot>
@@ -833,6 +906,9 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
                       <p>Tipo: {launchToUndo.paymentType}</p>
                       <p>Valor: {formatCurrency(launchToUndo.value)}</p>
                       <p>Data: {formatForDisplay(launchToUndo.date)}</p>
+                      {launchToUndo.observation && (
+                        <p>Observação: {launchToUndo.observation}</p>
+                      )}
                     </div>
                   </div>
                 )}
@@ -855,6 +931,6 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 };

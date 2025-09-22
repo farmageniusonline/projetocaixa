@@ -982,7 +982,7 @@ export const Dashboard: React.FC = () => {
         </div>
       </header>
 
-      <div className="flex min-h-[calc(100vh-8rem)]">
+      <div className="flex h-[calc(100vh-8rem)]">
         {activeTab === 'launches' ? (
           <LaunchTab
             currentDate={operationDate ? (() => {
@@ -998,9 +998,9 @@ export const Dashboard: React.FC = () => {
             conferredItems={conferredItems}
           />
         ) : activeTab === 'banking' ? (
-          <>
+          <div className="flex h-[calc(100vh-8rem)]">
             {/* Banking Conference Sidebar with Steps */}
-            <aside className="w-80 bg-gray-900 border-r border-gray-800 sticky top-32 self-start">
+            <aside className="w-72 bg-gray-900 border-r border-gray-800 flex-shrink-0 h-[calc(100vh-8rem)] overflow-y-auto">
               <div className="p-4 space-y-4">
             {/* Step 1: Load Spreadsheet */}
             <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
@@ -1236,9 +1236,9 @@ export const Dashboard: React.FC = () => {
             </aside>
 
             {/* Banking Conference Main Content Area */}
-            <main className="flex-1 bg-gray-950 p-6 min-h-[calc(100vh-8rem)] min-w-0">
+            <main className="flex-1 bg-gray-950 min-w-0 h-[calc(100vh-8rem)] flex flex-col" style={{ width: 'calc(100vw - 288px)' }}>
               {processingState.isProcessing ? (
-                <div className="bg-gray-800 rounded-lg shadow-2xl border border-gray-700 min-h-full p-8 flex items-center justify-center">
+                <div className="bg-gray-800 shadow-2xl border border-gray-700 h-full flex items-center justify-center">
                   <div className="text-center">
                     <svg className="animate-spin h-12 w-12 text-indigo-500 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -1248,8 +1248,8 @@ export const Dashboard: React.FC = () => {
                   </div>
                 </div>
               ) : error ? (
-                <div className="bg-gray-800 rounded-lg shadow-2xl border border-gray-700 min-h-full p-8">
-                  <div className="max-w-md mx-auto">
+                <div className="bg-gray-800 shadow-2xl border border-gray-700 min-h-full p-8">
+                  <div className="w-full">
                     <div className="bg-red-900/20 border border-red-400 rounded-md p-4">
                       <div className="flex">
                         <div className="flex-shrink-0">
@@ -1276,71 +1276,75 @@ export const Dashboard: React.FC = () => {
                   </div>
                 </div>
               ) : parseResult ? (
-                <div className="bg-gray-800 rounded-lg shadow-2xl border border-gray-700 min-h-[calc(100vh-12rem)] flex flex-col overflow-auto">
-                  {parseResult.warnings.length > 0 && (
-                    <div className="bg-yellow-900/20 border-b border-yellow-700 p-4">
-                      <div className="flex items-start">
-                        <svg className="h-5 w-5 text-yellow-400 mt-0.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                        </svg>
-                        <div className="ml-3 flex-1">
-                          <h3 className="text-sm font-medium text-yellow-400">Avisos encontrados durante o processamento</h3>
-                          <div className="mt-2 text-xs text-yellow-300 max-h-20 overflow-y-auto">
-                            {parseResult.warnings.slice(0, 5).map((warning, idx) => (
-                              <p key={idx}>{warning}</p>
-                            ))}
-                            {parseResult.warnings.length > 5 && (
-                              <p className="mt-1 font-semibold">... e mais {parseResult.warnings.length - 5} avisos</p>
-                            )}
+                <div className="flex-1 overflow-auto min-h-0" style={{ height: 'calc(100vh - 200px)' }}>
+                  <div className="bg-gray-800 shadow-2xl border border-gray-700 h-full w-full flex flex-col">
+                    {parseResult.warnings.length > 0 && (
+                      <div className="bg-yellow-900/20 border-b border-yellow-700 p-4">
+                        <div className="flex items-start">
+                          <svg className="h-5 w-5 text-yellow-400 mt-0.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                          </svg>
+                          <div className="ml-3 flex-1">
+                            <h3 className="text-sm font-medium text-yellow-400">Avisos encontrados durante o processamento</h3>
+                            <div className="mt-2 text-xs text-yellow-300 max-h-20 overflow-y-auto">
+                              {parseResult.warnings.slice(0, 5).map((warning, idx) => (
+                                <p key={idx}>{warning}</p>
+                              ))}
+                              {parseResult.warnings.length > 5 && (
+                                <p className="mt-1 font-semibold">... e mais {parseResult.warnings.length - 5} avisos</p>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
+                    )}
+                    <div className="flex-1 overflow-auto min-h-0 space-y-4">
+                      <div className="flex justify-between items-center">
+                        <h3 className="text-lg font-medium text-gray-200">Dados Bancários</h3>
+                        <ExportButtons
+                          data={{
+                            banking: parseResult?.data?.filter(item => !transferredIds.has(item.id)) || []
+                          }}
+                          prefix="bancario"
+                          date={operationDate}
+                          disabled={!parseResult?.data?.length}
+                        />
+                      </div>
+                      <VirtualizedDataTable parseResult={parseResult} transferredIds={transferredIds} />
                     </div>
-                  )}
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <h3 className="text-lg font-medium text-gray-200">Dados Bancários</h3>
-                      <ExportButtons
-                        data={{
-                          banking: parseResult?.data?.filter(item => !transferredIds.has(item.id)) || []
-                        }}
-                        prefix="bancario"
-                        date={operationDate}
-                        disabled={!parseResult?.data?.length}
-                      />
-                    </div>
-                    <VirtualizedDataTable parseResult={parseResult} transferredIds={transferredIds} />
                   </div>
                 </div>
               ) : (
-                <div className="bg-gray-800 rounded-lg shadow-2xl border border-gray-700 min-h-full p-8">
-                  <div className="flex items-center justify-center h-full">
-                    <div className="text-center">
-                      <svg
-                        className="mx-auto h-12 w-12 text-gray-600"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                        />
-                      </svg>
-                      <h3 className="mt-4 text-lg font-medium text-gray-300">
-                        Conferência Bancária
-                      </h3>
-                      <p className="mt-2 text-sm text-gray-500">
-                        Carregue uma planilha para começar a conferir valores.
-                      </p>
+                <div className="flex-1 overflow-auto min-h-0" style={{ height: 'calc(100vh - 200px)' }}>
+                  <div className="bg-gray-800 shadow-2xl border border-gray-700 h-full w-full flex flex-col">
+                    <div className="flex items-center justify-center h-full">
+                      <div className="text-center">
+                        <svg
+                          className="mx-auto h-12 w-12 text-gray-600"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                          />
+                        </svg>
+                        <h3 className="mt-4 text-lg font-medium text-gray-300">
+                          Conferência Bancária
+                        </h3>
+                        <p className="mt-2 text-sm text-gray-500">
+                          Carregue uma planilha para começar a conferir valores.
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
               )}
             </main>
-          </>
+          </div>
         ) : activeTab === 'actions' ? (
           /* Action Log Layout */
           <ActionLogPanel className="flex-1" />
@@ -1531,9 +1535,9 @@ export const Dashboard: React.FC = () => {
           </div>
         ) : (
           /* Cash Conference Layout */
-          <>
+          <div className="flex h-[calc(100vh-8rem)]">
             {/* Left Block - Date Filter */}
-            <aside className="w-80 bg-gray-900 border-r border-gray-800 sticky top-32 self-start">
+            <aside className="w-72 bg-gray-900 border-r border-gray-800 flex-shrink-0 h-[calc(100vh-8rem)] overflow-y-auto">
               <div className="p-4">
                 <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
                   <h3 className="text-sm font-semibold text-gray-100 mb-3 flex items-center">
@@ -1608,47 +1612,49 @@ export const Dashboard: React.FC = () => {
             </aside>
 
             {/* Right Block - Transferred Records Table */}
-            <main className="flex-1 bg-gray-950 p-6 min-h-[calc(100vh-8rem)] min-w-0">
-              <div className="bg-gray-800 rounded-lg shadow-2xl border border-gray-700 h-full">
-                {isShowingFiltered && (
-                  <div className="bg-indigo-900/20 border-b border-indigo-700 p-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <svg className="w-4 h-4 text-indigo-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                        </svg>
-                        <span className="text-sm font-medium text-indigo-400">
-                          Filtrado por: {dashboardFilters.selectedDate &&
-                            formatForDisplay(dashboardFilters.selectedDate)
-                          }
+            <main className="flex-1 bg-gray-950 min-w-0 h-[calc(100vh-8rem)] flex flex-col" style={{ width: 'calc(100vw - 288px)' }}>
+              <div className="flex-1 overflow-auto min-h-0" style={{ height: 'calc(100vh - 200px)' }}>
+                <div className="bg-gray-800 shadow-2xl border border-gray-700 h-full w-full flex flex-col">
+                  {isShowingFiltered && (
+                    <div className="bg-indigo-900/20 border-b border-indigo-700 p-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center">
+                          <svg className="w-4 h-4 text-indigo-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                          </svg>
+                          <span className="text-sm font-medium text-indigo-400">
+                            Filtrado por: {dashboardFilters.selectedDate &&
+                              formatForDisplay(dashboardFilters.selectedDate)
+                            }
+                          </span>
+                        </div>
+                        <span className="text-xs text-indigo-300">
+                          {filteredConferredItems.length} registro(s)
                         </span>
                       </div>
-                      <span className="text-xs text-indigo-300">
-                        {filteredConferredItems.length} registro(s)
-                      </span>
                     </div>
-                  </div>
-                )}
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-lg font-medium text-gray-200">Conferência de Caixa</h3>
-                    <ExportButtons
-                      data={{
-                        cash: isShowingFiltered ? filteredConferredItems : conferredItems
-                      }}
-                      prefix="caixa"
-                      date={operationDate}
-                      disabled={(isShowingFiltered ? filteredConferredItems : conferredItems).length === 0}
+                  )}
+                  <div className="flex-1 overflow-auto min-h-0 space-y-4">
+                    <div className="flex justify-between items-center">
+                      <h3 className="text-lg font-medium text-gray-200">Conferência de Caixa</h3>
+                      <ExportButtons
+                        data={{
+                          cash: isShowingFiltered ? filteredConferredItems : conferredItems
+                        }}
+                        prefix="caixa"
+                        date={operationDate}
+                        disabled={(isShowingFiltered ? filteredConferredItems : conferredItems).length === 0}
+                      />
+                    </div>
+                    <VirtualizedCashTable
+                      conferredItems={isShowingFiltered ? filteredConferredItems : conferredItems}
+                      onRemoveItem={handleRemoveConferredItem}
                     />
                   </div>
-                  <VirtualizedCashTable
-                    conferredItems={isShowingFiltered ? filteredConferredItems : conferredItems}
-                    onRemoveItem={handleRemoveConferredItem}
-                  />
                 </div>
               </div>
             </main>
-          </>
+          </div>
         )}
       </div>
       

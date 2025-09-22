@@ -179,7 +179,7 @@ export const VirtualizedDataTable: React.FC<VirtualizedDataTableProps> = ({
 
   if (!parseResult?.data) {
     return (
-      <div className={`bg-gray-800 border border-gray-700 rounded-lg ${className}`}>
+      <div className={`bg-gray-800 border border-gray-700 w-full ${className}`}>
         <div className="p-8 text-center text-gray-400">
           Carregue uma planilha para visualizar os dados bancários
         </div>
@@ -191,7 +191,7 @@ export const VirtualizedDataTable: React.FC<VirtualizedDataTableProps> = ({
   const TABLE_HEIGHT = Math.min(600, Math.max(300, filteredData.length * ROW_HEIGHT + 50));
 
   return (
-    <div className={`bg-gray-800 border border-gray-700 rounded-lg ${className}`}>
+    <div className={`bg-gray-800 border border-gray-700 w-full ${className}`}>
       {/* Header with stats and filters */}
       <div className="p-4 border-b border-gray-700">
         <div className="flex justify-between items-center mb-4">
