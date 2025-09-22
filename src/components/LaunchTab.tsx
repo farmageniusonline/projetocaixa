@@ -131,6 +131,9 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
   const [isLoading, setIsLoading] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteType, setDeleteType] = useState<'all' | 'date'>('all');
 
   const valueInputRef = useRef<HTMLInputElement>(null);
   const { saveFocus, restoreFocus } = useFocusRestore();
@@ -219,6 +222,70 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
       setIsLoading(false);
     }
   }, [getFilterDate]);
+
+  // Delete all launches
+  const handleDeleteAllLaunches = useCallback(async () => {
+    setIsDeleting(true);
+    try {
+      const response = await launchesService.deleteAllLaunches();
+
+      if (response.success) {
+        // Clear local state
+        setLaunches([]);
+        // Clear localStorage
+        localStorage.removeItem(STORAGE_KEY);
+        // Reload from Supabase
+        await loadLaunchesFromSupabase();
+        setShowDeleteModal(false);
+      }
+    } catch (error) {
+      console.error('Error deleting all launches:', error);
+      toast.error('Erro ao excluir todos os lançamentos');
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [loadLaunchesFromSupabase]);
+
+  // Delete launches by date
+  const handleDeleteLaunchesByDate = useCallback(async () => {
+    setIsDeleting(true);
+    try {
+      const filterDate = getFilterDate();
+      const dateString = filterDate.toISOString().split('T')[0]; // YYYY-MM-DD
+
+      const response = await launchesService.deleteAllLaunchesByDate(dateString);
+
+      if (response.success) {
+        // Clear local state
+        setLaunches([]);
+        // Clear localStorage
+        localStorage.removeItem(STORAGE_KEY);
+        // Reload from Supabase
+        await loadLaunchesFromSupabase();
+        setShowDeleteModal(false);
+      }
+    } catch (error) {
+      console.error('Error deleting launches by date:', error);
+      toast.error('Erro ao excluir lançamentos da data');
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [getFilterDate, loadLaunchesFromSupabase]);
+
+  // Show delete confirmation modal
+  const showDeleteConfirmation = useCallback((type: 'all' | 'date') => {
+    setDeleteType(type);
+    setShowDeleteModal(true);
+  }, []);
+
+  // Handle delete confirmation
+  const handleConfirmDelete = useCallback(async () => {
+    if (deleteType === 'all') {
+      await handleDeleteAllLaunches();
+    } else {
+      await handleDeleteLaunchesByDate();
+    }
+  }, [deleteType, handleDeleteAllLaunches, handleDeleteLaunchesByDate]);
 
   // Sync local launches to Supabase
   const syncToSupabase = useCallback(async () => {
@@ -361,6 +428,7 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
           observation: response.data.observation,
         };
 
+        // Update state immediately to show in table
         const updatedLaunches = [newLaunch, ...launches];
         setLaunches(updatedLaunches);
 
@@ -373,7 +441,7 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
           originalHistory: 'Manual',
           source: 'manual',
           cpf: '',
-          conferredAt: new Date(),
+          conferredAt: newLaunch.date, // Use launch date, not current date
           conferredId: newLaunch.id,
           observation: newLaunch.observation
         };
@@ -534,8 +602,10 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
 
   const filterDate = getFilterDate();
   const filteredLaunches = sortedLaunches.filter(launch => {
-    // Filter by date
-    const dateMatches = launch.date.toDateString() === filterDate.toDateString();
+    // Filter by date - normalize to YYYY-MM-DD for comparison
+    const launchDateStr = launch.date.toISOString().split('T')[0];
+    const filterDateStr = filterDate.toISOString().split('T')[0];
+    const dateMatches = launchDateStr === filterDateStr;
 
     // Filter by payment type
     let typeMatches = true;
@@ -925,6 +995,54 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
                     </>
                   )}
                 </button>
+
+                <button
+                  onClick={() => showDeleteConfirmation('date')}
+                  disabled={isDeleting || filteredLaunches.length === 0}
+                  className="px-3 py-1 text-xs bg-orange-600 hover:bg-orange-700 disabled:bg-gray-600 text-white rounded-md transition-colors flex items-center space-x-1"
+                  title="Excluir todos os lançamentos da data atual"
+                >
+                  {isDeleting && deleteType === 'date' ? (
+                    <>
+                      <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      <span>Excluindo</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                      <span>Limpar Data</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  onClick={() => showDeleteConfirmation('all')}
+                  disabled={isDeleting || launches.length === 0}
+                  className="px-3 py-1 text-xs bg-red-600 hover:bg-red-700 disabled:bg-gray-600 text-white rounded-md transition-colors flex items-center space-x-1"
+                  title="Excluir TODOS os lançamentos"
+                >
+                  {isDeleting && deleteType === 'all' ? (
+                    <>
+                      <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 714 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      <span>Excluindo</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                      <span>Limpar Tudo</span>
+                    </>
+                  )}
+                </button>
               </div>
               <ExportButtons
                 data={{
@@ -1150,6 +1268,74 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
                   <button
                     onClick={handleCancelUndo}
                     className="flex-1 px-4 py-2 text-sm font-medium text-gray-300 bg-gray-700 border border-gray-600 rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-gray-500 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-gray-800 rounded-lg shadow-2xl border border-gray-700 p-6 max-w-md w-full mx-4">
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <svg className="h-6 w-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div className="ml-3 flex-1">
+                <h3 className="text-lg font-medium text-gray-100 mb-2">
+                  Confirmar Exclusão
+                </h3>
+                <p className="text-sm text-gray-300 mb-6">
+                  {deleteType === 'all'
+                    ? 'Tem certeza que deseja excluir TODOS os lançamentos? Esta ação não pode ser desfeita.'
+                    : `Tem certeza que deseja excluir todos os lançamentos da data ${formatForDisplay(getFilterDate())}? Esta ação não pode ser desfeita.`
+                  }
+                </p>
+                <div className="bg-gray-900 rounded p-3 mb-4 border border-gray-700">
+                  <div className="text-xs text-gray-400">
+                    {deleteType === 'all' ? (
+                      <>
+                        <p>⚠️ Isso irá excluir TODOS os lançamentos do banco de dados</p>
+                        <p>Total de lançamentos: {launches.length}</p>
+                      </>
+                    ) : (
+                      <>
+                        <p>⚠️ Isso irá excluir todos os lançamentos da data selecionada</p>
+                        <p>Data: {formatForDisplay(getFilterDate())}</p>
+                        <p>Lançamentos na data: {filteredLaunches.length}</p>
+                      </>
+                    )}
+                  </div>
+                </div>
+                <div className="flex space-x-3">
+                  <button
+                    onClick={handleConfirmDelete}
+                    disabled={isDeleting}
+                    className="flex-1 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-red-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isDeleting ? (
+                      <div className="flex items-center justify-center">
+                        <svg className="animate-spin h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Excluindo...
+                      </div>
+                    ) : (
+                      'Confirmar Exclusão'
+                    )}
+                  </button>
+                  <button
+                    onClick={() => setShowDeleteModal(false)}
+                    disabled={isDeleting}
+                    className="flex-1 px-4 py-2 text-sm font-medium text-gray-300 bg-gray-700 border border-gray-600 rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-gray-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Cancelar
                   </button>

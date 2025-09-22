@@ -317,6 +317,158 @@ class LaunchesService {
   }
 
   /**
+   * Delete all launches for the current user
+   */
+  async deleteAllLaunches(): Promise<LaunchesServiceResponse<boolean>> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (!user) {
+        return {
+          data: null,
+          error: 'Usuário não autenticado',
+          success: false
+        };
+      }
+
+      // First, get the count of launches to be deleted
+      const { count, error: countError } = await supabase
+        .from(this.TABLE_NAME)
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id);
+
+      if (countError) {
+        console.error('Error counting launches:', countError);
+        return {
+          data: null,
+          error: countError.message,
+          success: false
+        };
+      }
+
+      const launchCount = count || 0;
+
+      if (launchCount === 0) {
+        toast.info('Nenhum lançamento encontrado para excluir');
+        return {
+          data: true,
+          error: null,
+          success: true
+        };
+      }
+
+      // Delete all launches for the current user
+      const { error } = await supabase
+        .from(this.TABLE_NAME)
+        .delete()
+        .eq('user_id', user.id);
+
+      if (error) {
+        console.error('Error deleting all launches:', error);
+        toast.error('Erro ao excluir todos os lançamentos');
+        return {
+          data: null,
+          error: error.message,
+          success: false
+        };
+      }
+
+      toast.success(`${launchCount} lançamento(s) excluído(s) com sucesso`);
+      return {
+        data: true,
+        error: null,
+        success: true
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      console.error('Error in deleteAllLaunches:', error);
+      toast.error('Erro ao excluir todos os lançamentos');
+      return {
+        data: null,
+        error: errorMessage,
+        success: false
+      };
+    }
+  }
+
+  /**
+   * Delete all launches for a specific date
+   */
+  async deleteAllLaunchesByDate(date: string): Promise<LaunchesServiceResponse<boolean>> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (!user) {
+        return {
+          data: null,
+          error: 'Usuário não autenticado',
+          success: false
+        };
+      }
+
+      // First, get the count of launches to be deleted for this date
+      const { count, error: countError } = await supabase
+        .from(this.TABLE_NAME)
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('launch_date', date);
+
+      if (countError) {
+        console.error('Error counting launches by date:', countError);
+        return {
+          data: null,
+          error: countError.message,
+          success: false
+        };
+      }
+
+      const launchCount = count || 0;
+
+      if (launchCount === 0) {
+        toast.info(`Nenhum lançamento encontrado para a data ${date}`);
+        return {
+          data: true,
+          error: null,
+          success: true
+        };
+      }
+
+      // Delete all launches for the specified date
+      const { error } = await supabase
+        .from(this.TABLE_NAME)
+        .delete()
+        .eq('user_id', user.id)
+        .eq('launch_date', date);
+
+      if (error) {
+        console.error('Error deleting launches by date:', error);
+        toast.error(`Erro ao excluir lançamentos da data ${date}`);
+        return {
+          data: null,
+          error: error.message,
+          success: false
+        };
+      }
+
+      toast.success(`${launchCount} lançamento(s) da data ${date} excluído(s) com sucesso`);
+      return {
+        data: true,
+        error: null,
+        success: true
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      console.error('Error in deleteAllLaunchesByDate:', error);
+      toast.error(`Erro ao excluir lançamentos da data ${date}`);
+      return {
+        data: null,
+        error: errorMessage,
+        success: false
+      };
+    }
+  }
+
+  /**
    * Sync local launches to Supabase
    */
   async syncLocalLaunches(localLaunches: Launch[]): Promise<LaunchesServiceResponse<Launch[]>> {
