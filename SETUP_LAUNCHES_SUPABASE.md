@@ -4,23 +4,26 @@
 
 A integração dos lançamentos com o Supabase foi **100% implementada**! Agora os lançamentos da aba "Lançamentos" serão salvos diretamente no Supabase em vez de apenas no localStorage.
 
-## 🗄️ **1. Criar Tabela no Supabase**
+## 🗄️ **1. Criar Tabelas no Supabase**
 
-**IMPORTANTE:** Você precisa executar o SQL abaixo no seu Supabase para criar a tabela `launches`.
+**IMPORTANTE:** Você precisa executar o SQL abaixo no seu Supabase para criar as tabelas e corrigir problemas RLS.
 
-### Acesse o Supabase:
+### ⚠️ **PROBLEMA IDENTIFICADO:**
+Os E2E tests revelaram erros RLS na tabela `profiles`:
+- ❌ `Error creating profile: new row violates row-level security policy for table "profiles"`
+- ❌ Erro 403/406 ao acessar recursos do Supabase
+
+### ✅ **SOLUÇÃO COMPLETA:**
+
+#### Opção 1: Setup Completo (Recomendado)
 1. Vá para [https://supabase.com](https://supabase.com)
 2. Faça login na sua conta `farmagenius-projects`
 3. Acesse seu projeto
 4. Vá em **SQL Editor** (ícone de banco de dados)
+5. **Execute:** `supabase/complete-setup.sql` (corrige tudo de uma vez)
 
-### Execute o SQL:
-```sql
--- Este arquivo já foi criado: supabase/launches-table.sql
--- Copie e cole o conteúdo deste arquivo no SQL Editor do Supabase
-```
-
-**Ou copie o arquivo:** `supabase/launches-table.sql` e execute no SQL Editor.
+#### Opção 2: Apenas Tabela Launches
+- **Execute:** `supabase/launches-table.sql` (apenas lançamentos)
 
 ## 🔧 **2. Funcionalidades Implementadas**
 

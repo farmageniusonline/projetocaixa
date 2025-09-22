@@ -704,7 +704,7 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
                 <button
                   key={method.id}
                   onClick={() => handleMethodSelect(method.id)}
-                  className={`w-full text-left px-3 py-2 text-sm rounded-md transition-colors ${
+                  className={`w-full text-left px-3 py-3 text-sm rounded-md transition-colors min-h-[44px] ${
                     selectedMethod === method.id
                       ? 'bg-indigo-600 text-white'
                       : 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-gray-100'
@@ -722,9 +722,9 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
                   <div className="flex space-x-2">
                     <button
                       onClick={() => setIsLink(true)}
-                      className={`flex-1 px-3 py-1 text-xs rounded-md transition-colors ${
+                      className={`flex-1 px-3 py-2 text-xs rounded-md transition-colors min-h-[36px] ${
                         isLink === true
-                          ? 'bg-green-600 text-white'
+                          ? 'bg-green-600 text-white shadow-lg'
                           : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                       }`}
                     >
@@ -732,9 +732,9 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
                     </button>
                     <button
                       onClick={() => setIsLink(false)}
-                      className={`flex-1 px-3 py-1 text-xs rounded-md transition-colors ${
+                      className={`flex-1 px-3 py-2 text-xs rounded-md transition-colors min-h-[36px] ${
                         isLink === false
-                          ? 'bg-red-600 text-white'
+                          ? 'bg-red-600 text-white shadow-lg'
                           : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                       }`}
                     >
@@ -752,7 +752,7 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
                 <button
                   key={method.id}
                   onClick={() => handleMethodSelect(method.id)}
-                  className={`w-full text-left px-3 py-2 text-sm rounded-md transition-colors ${
+                  className={`w-full text-left px-3 py-3 text-sm rounded-md transition-colors min-h-[44px] ${
                     selectedMethod === method.id
                       ? 'bg-indigo-600 text-white'
                       : 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-gray-100'
@@ -771,7 +771,7 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
                 <button
                   key={method.id}
                   onClick={() => handleMethodSelect(method.id)}
-                  className={`w-full text-left px-3 py-2 text-sm rounded-md transition-colors ${
+                  className={`w-full text-left px-3 py-3 text-sm rounded-md transition-colors min-h-[44px] ${
                     selectedMethod === method.id
                       ? 'bg-red-600 text-white'
                       : 'bg-red-900/20 text-red-300 border border-red-600 hover:bg-red-900/30 hover:text-red-200'
@@ -844,10 +844,15 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
               </button>
             </div>
 
-            {/* Success Message */}
+            {/* Success Message - Melhorado para melhor visibilidade */}
             {success && (
-              <div className="mt-2 p-2 bg-green-900/20 border border-green-400 rounded-md">
-                <p className="text-xs text-green-400">{success}</p>
+              <div className="mt-2 p-3 bg-green-900/30 border-2 border-green-400 rounded-lg shadow-lg animate-pulse">
+                <div className="flex items-center">
+                  <svg className="h-4 w-4 text-green-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  <p className="text-sm font-medium text-green-300">{success}</p>
+                </div>
               </div>
             )}
           </div>
@@ -1100,7 +1105,9 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
           </div>
 
           <div className="flex-1 overflow-auto min-h-0" style={{ height: 'calc(100vh - 200px)' }}>
-            <table className="w-full text-sm text-left text-gray-300" style={{ height: '100%', tableLayout: 'fixed' }}>
+            {/* Wrapper para scroll horizontal em mobile */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left text-gray-300 min-w-[800px] lg:min-w-0" style={{ height: '100%', tableLayout: 'fixed' }}>
               <thead className="text-xs text-gray-400 uppercase bg-gray-900 sticky top-0">
                 <tr>
                   <th
@@ -1225,6 +1232,7 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
                 </tfoot>
               )}
             </table>
+            </div>
           </div>
         </div>
       </main>
