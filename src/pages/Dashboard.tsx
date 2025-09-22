@@ -505,6 +505,11 @@ export const Dashboard: React.FC = () => {
 
         setParseResult(compatibleParseResult);
 
+        // Automatically select today's date after successful spreadsheet loading
+        const todayFormatted = formatDateForQuery(new Date());
+        setDashboardFilters(prev => ({ ...prev, selectedDate: todayFormatted }));
+        console.log(`📅 Data selecionada automaticamente: ${todayFormatted}`);
+
         // Create value index from converted data
         const index = createValueIndex(convertedData);
         setValueIndex(index);

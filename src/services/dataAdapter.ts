@@ -295,17 +295,46 @@ class DataAdapter {
   // === CONFERENCE SEARCH OPERATIONS ===
 
   async searchConferenceValue(searchValue: string, _date?: string): Promise<any[]> {
+    // Normalize the search value - handle Brazilian decimal format and remove currency symbols
+    const normalizedValue = parseFloat(
+      searchValue
+        .replace(/[R$\s]/g, '') // Remove R$ and spaces
+        .replace(',', '.') // Convert comma to dot for decimal
+        .replace(/[^\d.-]/g, '') // Remove any non-numeric characters except dots and dashes
+    );
+
+    if (isNaN(normalizedValue)) {
+      throw new Error('Valor inválido para busca');
+    }
+
     if (this.mode === 'supabase') {
-      // Parse the value to number for Supabase search
-      const numericValue = parseFloat(searchValue.replace(',', '.').replace(/[^\d.-]/g, ''));
-      if (isNaN(numericValue)) {
-        throw new Error('Valor inválido para busca');
+      return await supabaseDataService.searchTransactionsByValue(normalizedValue, 0.01);
+    } else {
+      // For IndexedDB, implement tolerance-based search
+      const tolerance = 0.01;
+      const results = await IndexedDbService.searchByValue(normalizedValue, _date);
+
+      // If no exact match found, try tolerance-based search
+      if (results.length === 0) {
+        // Convert to cents for precision comparison
+        const searchCents = Math.round(normalizedValue * 100);
+        const toleranceCents = Math.round(tolerance * 100);
+
+        // Get all entries for the date and filter by value range
+        const allEntries = _date
+          ? await IndexedDbService.getHistoryByDate(_date)
+          : await IndexedDbService.getHistoryByDate(new Date().toISOString().split('T')[0]);
+
+        const toleranceResults = allEntries.filter(entry => {
+          if (!entry.value) return false;
+          const entryCents = Math.round(entry.value * 100);
+          return Math.abs(entryCents - searchCents) <= toleranceCents;
+        });
+
+        return toleranceResults;
       }
 
-      return await supabaseDataService.searchTransactionsByValue(numericValue);
-    } else {
-      // For IndexedDB, search by exact value match
-      return await IndexedDbService.searchByValue(parseFloat(searchValue.replace(',', '.')));
+      return results;
     }
   }
 
