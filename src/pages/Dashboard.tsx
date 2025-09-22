@@ -161,6 +161,52 @@ export const Dashboard: React.FC = () => {
     restoreFocus();
   }, [restoreFocus]);
 
+  // Transfer function for conference - must be defined BEFORE handleConferenceCheck
+  const transferToConference = useCallback(async (match: ValueMatch) => {
+    const conferredId = `conf-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const conferredItem = {
+      ...match,
+      conferredAt: new Date(),
+      conferredId,
+    };
+
+    // Add to conferred items
+    setConferredItems(prev => [...prev, conferredItem]);
+
+    // Mark as transferred to remove from banking table
+    setTransferredIds(prev => new Set([...prev, match.id]));
+
+    // Update lookup map incrementally
+    valueLookup.updateEntryStatus(match.id, match.value, 'conferred');
+
+    // Save to database
+    try {
+      await StorageAdapter.saveCashConference(
+        match,
+        operationDate,
+        'conferred'
+      );
+    } catch (dbError) {
+      console.error('Error saving conference to database:', dbError);
+    }
+
+    // Clear input and show success
+    setConferenceValue('');
+    setSearchSuccess('Valor encontrado e transferido para Conferência de Caixa.');
+
+    // Focus back on the input field
+    setTimeout(() => {
+      const input = document.querySelector('input[placeholder*="Digite o valor"]') as HTMLInputElement;
+      if (input) {
+        input.focus();
+        input.select();
+      }
+    }, 100);
+
+    // Clear success message after 3 seconds
+    setTimeout(() => setSearchSuccess(null), 3000);
+  }, [operationDate]);
+
   // Conference value search and transfer logic
   const handleConferenceCheck = useCallback(async () => {
     // Use Zod validation instead of legacy validator
@@ -180,7 +226,7 @@ export const Dashboard: React.FC = () => {
     try {
       // Use the DataAdapter to search for matches
       const searchValue = dashboardFilters.conferenceValue.trim();
-      const results = await performanceLogger.time('conference-search', async () => {
+      const results = await performanceLogger.measureAsync('conference_search', async () => {
         return await dataAdapter.searchConferenceValue(
           searchValue,
           dashboardFilters.selectedDate || formatDateForQuery(new Date())
@@ -188,24 +234,21 @@ export const Dashboard: React.FC = () => {
       });
 
       if (results.length === 0) {
-        setSearchError('Nenhum valor encontrado para conferência');
+        // Check if there's any data loaded first
+        if (!parseResult || !parseResult.data || parseResult.data.length === 0) {
+          setSearchError('Nenhuma planilha carregada. Por favor, carregue uma planilha na aba "Conferência Bancária" primeiro.');
+        } else {
+          setSearchError('Nenhum valor encontrado para conferência');
+        }
         return;
       }
 
       setSearchMatches(results);
 
       if (results.length === 1) {
-        // Auto-select if only one match
-        const conferredItem = {
-          ...results[0],
-          conferredAt: new Date(),
-          conferredId: `conf-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-        };
-        setConferredItems(prev => [conferredItem, ...prev]);
-        setDashboardFilters(prev => ({ ...prev, conferenceValue: '' }));
+        // Auto-select if only one match - use transferToConference for proper handling
+        await transferToConference(results[0]);
         setSearchMatches([]);
-        setSearchSuccess('Valor conferido automaticamente!');
-        setTimeout(() => setSearchSuccess(null), 3000);
       } else {
         // Show selection modal for multiple matches
         saveFocus();
@@ -227,7 +270,8 @@ export const Dashboard: React.FC = () => {
     setSearchSuccess,
     saveFocus,
     setShowSelectionModal,
-    setIsSearching
+    setIsSearching,
+    transferToConference
   ]);
 
   const handleConfirmAction = useCallback(() => {
@@ -732,50 +776,6 @@ export const Dashboard: React.FC = () => {
     setShowRestartModal(false);
   };
 
-  const transferToConference = useCallback(async (match: ValueMatch) => {
-    const conferredId = `conf-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const conferredItem = {
-      ...match,
-      conferredAt: new Date(),
-      conferredId,
-    };
-
-    // Add to conferred items
-    setConferredItems(prev => [...prev, conferredItem]);
-
-    // Mark as transferred to remove from banking table
-    setTransferredIds(prev => new Set([...prev, match.id]));
-
-    // Update lookup map incrementally
-    valueLookup.updateEntryStatus(match.id, match.value, 'conferred');
-
-    // Save to database
-    try {
-      await StorageAdapter.saveCashConference(
-        match,
-        operationDate,
-        'conferred'
-      );
-    } catch (dbError) {
-      console.error('Error saving conference to database:', dbError);
-    }
-
-    // Clear input and show success
-    setConferenceValue('');
-    setSearchSuccess('Valor encontrado e transferido para Conferência de Caixa.');
-
-    // Focus back on the input field
-    setTimeout(() => {
-      const input = document.querySelector('input[placeholder*="Digite o valor"]') as HTMLInputElement;
-      if (input) {
-        input.focus();
-        input.select();
-      }
-    }, 100);
-
-    // Clear success message after 3 seconds
-    setTimeout(() => setSearchSuccess(null), 3000);
-  }, [operationDate]);
 
   const handleModalSelection = useCallback((match: ValueMatch) => {
     transferToConference(match);
@@ -1052,9 +1052,31 @@ export const Dashboard: React.FC = () => {
 
             {/* Step 3: Check Value */}
             <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-              <h3 className="text-sm font-semibold text-gray-100 mb-3 flex items-center">
-                <span className="bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center mr-2 text-xs">3</span>
-                Conferir Valor
+              <h3 className="text-sm font-semibold text-gray-100 mb-3 flex items-center justify-between">
+                <div className="flex items-center">
+                  <span className="bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center mr-2 text-xs">3</span>
+                  Conferir Valor
+                </div>
+                {/* Data status indicator */}
+                <div className={`flex items-center text-xs px-2 py-1 rounded-full ${
+                  parseResult?.data?.length ? 'bg-green-900/30 text-green-400' : 'bg-yellow-900/30 text-yellow-400'
+                }`}>
+                  {parseResult?.data?.length ? (
+                    <>
+                      <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      {parseResult.data.length} itens
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                      Sem dados
+                    </>
+                  )}
+                </div>
               </h3>
               <div className="space-y-2">
                 <div className="relative">
@@ -1062,7 +1084,8 @@ export const Dashboard: React.FC = () => {
                     ref={conferenceValueRef}
                     id="conference-value-input"
                     type="text"
-                    placeholder="Digite o valor (ex: 123,45)"
+                    placeholder={!parseResult ? "Carregue uma planilha primeiro" : "Digite o valor (ex: 123,45)"}
+                    title={!parseResult ? "É necessário carregar uma planilha na aba 'Conferência Bancária' antes de conferir valores" : "Digite o valor para buscar"}
                     value={dashboardFilters.conferenceValue}
                     onChange={(e) => handleConferenceValueChange(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && !isSearching && handleConferenceCheck()}

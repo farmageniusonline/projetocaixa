@@ -136,9 +136,7 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
   const { saveFocus, restoreFocus } = useFocusRestore();
 
   // Load launches from Supabase on component mount and when filter date changes
-  useEffect(() => {
-    loadLaunchesFromSupabase();
-  }, [loadLaunchesFromSupabase]);
+  // Moved after loadLaunchesFromSupabase definition to avoid reference error
 
   // Define getFilterDate early to avoid initialization errors
   const getFilterDate = useCallback(() => {
@@ -198,10 +196,25 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
 
         setLaunches(supabaseLaunches);
         setLastSyncTime(new Date());
+      } else {
+        // If no data from Supabase, load from localStorage as fallback
+        const localData = loadLaunches();
+        if (localData.length > 0) {
+          setLaunches(localData);
+          console.log('Using local data as fallback');
+        }
       }
     } catch (error) {
       console.error('Error loading launches from Supabase:', error);
-      toast.error('Erro ao carregar lançamentos do servidor');
+      // Don't show error toast on initial load - just use local data
+      // toast.error('Erro ao carregar lançamentos do servidor');
+
+      // Load from localStorage as fallback
+      const localData = loadLaunches();
+      if (localData.length > 0) {
+        setLaunches(localData);
+        console.log('Using local data due to Supabase error');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -248,6 +261,11 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
     } finally {
       setIsSyncing(false);
     }
+  }, [loadLaunchesFromSupabase]);
+
+  // Load launches when component mounts or filter date changes
+  useEffect(() => {
+    loadLaunchesFromSupabase();
   }, [loadLaunchesFromSupabase]);
 
   // Using the centralized formatCurrency function from valueNormalizer
