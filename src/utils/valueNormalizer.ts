@@ -72,7 +72,7 @@ export function createValueIndex(dataset: unknown[]): Map<number, ValueMatch[]> 
       }
 
       index.get(normalizedValue)!.push({
-        id: `row-${rowIndex}-${row.date}-${row.value}`,
+        id: row.id || `row-${rowIndex}-${row.date}-${row.value}`,
         date: row.date,
         paymentType: row.paymentType,
         cpf: row.cpf,
@@ -126,7 +126,7 @@ export function searchValueMatches(
 
     if (normalizedRowValue === normalizedInput) {
       matches.push({
-        id: `row-${index}-${row.date}-${row.value}`,
+        id: row.id || `row-${index}-${row.date}-${row.value}`,
         date: row.date,
         paymentType: row.paymentType,
         cpf: row.cpf,

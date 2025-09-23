@@ -131,7 +131,10 @@ export const VirtualizedDataTable: React.FC<VirtualizedDataTableProps> = ({
   console.log('📊 VirtualizedDataTable renderizando:', {
     parseResult: !!parseResult,
     dataLength: parseResult?.data?.length || 0,
-    transferredIds: transferredIds.size
+    transferredIds: transferredIds.size,
+    transferredIdsArray: Array.from(transferredIds),
+    dataSample: parseResult?.data?.slice(0, 3).map(item => ({ id: item.id, value: item.value })),
+    timestamp: new Date().toISOString()
   });
   // Filters state
   const [filters, setFilters] = usePersistentState<TableFilters>('banking_table_filters', {
@@ -141,12 +144,23 @@ export const VirtualizedDataTable: React.FC<VirtualizedDataTableProps> = ({
     searchText: '',
   });
 
-  // Use memoized selectors
-  const { filteredData, stats, isEmpty, hasFilters } = useBankingTableSelectors(
+  // Use memoized selectors with enhanced logging
+  const selectorResult = useBankingTableSelectors(
     parseResult,
     transferredIds,
     filters
   );
+
+  const { filteredData, stats, isEmpty, hasFilters } = selectorResult;
+
+  console.log('🎯 Selector results:', {
+    filteredDataLength: filteredData.length,
+    statsFilteredCount: stats.filteredCount,
+    isEmpty,
+    hasFilters,
+    transferredIdsSize: transferredIds.size,
+    rawDataLength: parseResult?.data?.length || 0
+  });
 
   // Memoized filter options
   const filterOptions = useMemo(() => {
@@ -158,11 +172,20 @@ export const VirtualizedDataTable: React.FC<VirtualizedDataTableProps> = ({
     return { paymentTypes, statuses };
   }, [parseResult?.data]);
 
-  // Memoized data for the virtual list
-  const listData = useMemo(() => ({
-    items: filteredData,
-    transferredIds
-  }), [filteredData, transferredIds]);
+  // Memoized data for the virtual list with enhanced change detection
+  const listData = useMemo(() => {
+    console.log('🔄 Creating listData:', {
+      filteredDataLength: filteredData.length,
+      transferredIdsSize: transferredIds.size,
+      transferredIdsArray: Array.from(transferredIds),
+      filteredDataSample: filteredData.slice(0, 3).map(item => ({ id: item.id, value: item.value }))
+    });
+
+    return {
+      items: filteredData,
+      transferredIds
+    };
+  }, [filteredData, filteredData.length, transferredIds, transferredIds.size]);
 
   const handleFilterChange = useCallback((key: keyof TableFilters, value: string | number) => {
     setFilters(prev => ({ ...prev, [key]: value }));

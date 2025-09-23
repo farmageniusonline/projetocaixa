@@ -31,9 +31,24 @@ export function useBankingTableSelectors(
   const filteredData = useMemo(() => {
     if (!parseResult?.data) return [];
 
-    return parseResult.data.filter(item => {
+    // Convert Set to Array to force React to detect changes properly
+    const transferredIdsArray = Array.from(transferredIds);
+    const transferredIdsSize = transferredIds.size;
+
+    console.debug('🔍 Starting filtering process:', {
+      totalItems: parseResult.data.length,
+      transferredIdsSize,
+      transferredIdsArray,
+      filters
+    });
+
+    const filtered = parseResult.data.filter(item => {
       // Skip transferred items
-      if (transferredIds.has(item.id)) return false;
+      const isTransferred = transferredIds.has(item.id);
+      if (isTransferred) {
+        console.debug(`❌ Filtering out transferred item: ${item.id} (value: ${item.value})`);
+        return false;
+      }
 
       // Date filter
       if (filters.dateFilter && !item.date?.includes(filters.dateFilter)) {
@@ -66,9 +81,22 @@ export function useBankingTableSelectors(
         return false;
       }
 
+      console.debug(`✅ Item passed filters: ${item.id} (value: ${item.value})`);
       return true;
     });
-  }, [parseResult?.data, transferredIds, filters]);
+
+    console.debug('🎯 Table filtering results:', {
+      totalItems: parseResult?.data?.length || 0,
+      transferredIdsSize,
+      transferredIdsArray,
+      filteredCount: filtered.length,
+      itemsFiltered: parseResult.data.length - filtered.length,
+      sampleFilteredIds: filtered.slice(0, 5).map(item => item.id),
+      transferredItemsInData: parseResult.data.filter(item => transferredIds.has(item.id)).map(item => item.id)
+    });
+
+    return filtered;
+  }, [parseResult?.data, transferredIds, transferredIds.size, filters]);
 
   // Memoized statistics
   const stats = useMemo((): TableStats => {
