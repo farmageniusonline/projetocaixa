@@ -24,7 +24,7 @@ import { logger } from '../utils/logger';
 import { useDashboardFilters, usePersistentState } from '../hooks/usePersistentState';
 import StorageAdapter from '../lib/storageAdapter';
 import { dataAdapter } from '../services/dataAdapter';
-import { ConferenceHistoryEntry } from '../services/indexedDbService';
+import { ConferenceHistoryEntry } from '../lib/storageAdapter';
 import { formatForDisplay, getTodayDDMMYYYY, formatDateForQuery } from '../utils/dateFormatter';
 import { LaunchTab } from '../components/LaunchTab';
 import { useDebounce } from '../hooks/useDebounce';
@@ -168,6 +168,13 @@ export const Dashboard: React.FC = () => {
 
   // Transfer function for conference - must be defined BEFORE handleConferenceCheck
   const transferToConference = useCallback(async (match: ValueMatch) => {
+    logger.debug('Starting transfer to conference:', {
+      matchId: match.id,
+      matchValue: match.value,
+      matchType: typeof match.value,
+      currentTransferredIds: Array.from(transferredIds)
+    });
+
     const conferredId = `conf-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const conferredItem = {
       ...match,
@@ -179,7 +186,26 @@ export const Dashboard: React.FC = () => {
     setConferredItems(prev => [...prev, conferredItem]);
 
     // Mark as transferred to remove from banking table
-    setTransferredIds(prev => new Set([...prev, match.id]));
+    setTransferredIds(prev => {
+      const newSet = new Set([...prev, match.id]);
+      logger.debug('Updated transferredIds:', {
+        previousSize: prev.size,
+        newSize: newSet.size,
+        addedId: match.id,
+        newTransferredIds: Array.from(newSet)
+      });
+
+      // Force immediate update check
+      setTimeout(() => {
+        logger.debug('Post-transfer state check:', {
+          transferredIdsIncludes: newSet.has(match.id),
+          transferredIdsSize: newSet.size,
+          matchId: match.id
+        });
+      }, 100);
+
+      return newSet;
+    });
 
     // Update lookup map incrementally
     valueLookup.updateEntryStatus(match.id, match.value, 'conferred');
@@ -210,7 +236,62 @@ export const Dashboard: React.FC = () => {
 
     // Clear success message after 3 seconds
     setTimeout(() => setSearchSuccess(null), 3000);
-  }, [operationDate]);
+
+    logger.debug('Transfer to conference completed:', {
+      matchId: match.id,
+      matchValue: match.value,
+      conferredItemsCount: conferredItems.length + 1,
+      finalTransferredIdsSize: transferredIds.size
+    });
+
+    // Force a small delay to ensure state propagation and re-render
+    setTimeout(() => {
+      logger.debug('Final verification - item should be hidden from banking table:', {
+        itemId: match.id,
+        isInTransferredIds: transferredIds.has(match.id),
+        transferredIdsArray: Array.from(transferredIds)
+      });
+    }, 200);
+  }, [operationDate, conferredItems.length, transferredIds.size]);
+
+  // Monitor transferredIds changes for debugging
+  useEffect(() => {
+    logger.debug('transferredIds state changed:', {
+      size: transferredIds.size,
+      ids: Array.from(transferredIds),
+      parseResultDataLength: parseResult?.data?.length || 0
+    });
+  }, [transferredIds, parseResult?.data?.length]);
+
+  // Force load parseResult on component mount
+  useEffect(() => {
+    logger.debug('Dashboard mounted, checking localStorage...');
+    const storedParseResult = localStorage.getItem('dashboard_parse_result');
+    const storedTransferredIds = localStorage.getItem('dashboard_transferred_ids');
+
+    logger.debug('Stored data check:', {
+      hasParseResult: !!storedParseResult,
+      hasTransferredIds: !!storedTransferredIds,
+      currentParseResult: !!parseResult,
+      currentTransferredIdsSize: transferredIds.size
+    });
+
+    // If localStorage has data but state doesn't, force reload
+    if (storedParseResult && !parseResult) {
+      logger.debug('Found stored parseResult but state is empty, forcing reload...');
+      try {
+        const parsed = JSON.parse(storedParseResult);
+        if (parsed && parsed.data && parsed.data.length > 0) {
+          logger.debug('Manually setting parseResult from localStorage', {
+            dataLength: parsed.data.length
+          });
+          setParseResult(parsed);
+        }
+      } catch (error) {
+        logger.error('Error parsing stored parseResult:', error);
+      }
+    }
+  }, []); // Run only on mount
 
   // Conference value search and transfer logic
   const handleConferenceCheck = useCallback(async () => {
@@ -229,17 +310,73 @@ export const Dashboard: React.FC = () => {
     setSearchMatches([]);
 
     try {
-      // Use the DataAdapter to search for matches
       const searchValue = dashboardFilters.conferenceValue.trim();
-      const results = await performanceLogger.measureAsync('conference_search', async () => {
-        return await dataAdapter.searchConferenceValue(
-          searchValue,
-          dashboardFilters.selectedDate || formatDateForQuery(new Date())
-        );
+      logger.debug('Conference search started:', {
+        searchValue,
+        selectedDate: dashboardFilters.selectedDate,
+        parseResultExists: !!parseResult,
+        parseResultDataLength: parseResult?.data?.length || 0,
+        valueIndexSize: valueIndex?.size || 0
       });
 
+      let results: any[] = [];
+
+      // PRIORITY 1: Search in loaded spreadsheet data first
+      if (parseResult?.data && valueIndex) {
+        logger.debug('Trying primary search in loaded spreadsheet data:', {
+          parseResultDataSample: parseResult.data.slice(0, 5).map(item => ({
+            id: item.id,
+            value: item.value,
+            valueType: typeof item.value,
+            date: item.date,
+            originalHistory: item.originalHistory
+          })),
+          searchValue,
+          searchValueType: typeof searchValue,
+          valueIndexKeys: Array.from(valueIndex.keys()).slice(0, 15),
+          valueIndexValues: Array.from(valueIndex.entries()).slice(0, 5).map(([key, matches]) => ({
+            key,
+            matchesCount: matches.length,
+            firstMatchValue: matches[0]?.value
+          }))
+        });
+
+        const localResults = searchValueMatches(searchValue, parseResult.data, valueIndex);
+
+        logger.debug('Spreadsheet search results:', {
+          hasMatches: localResults.hasMatches,
+          matchesLength: localResults.matches.length,
+          normalizedInput: localResults.normalizedInput,
+          matches: localResults.matches.slice(0, 3),
+          firstMatchId: localResults.matches[0]?.id,
+          originalDataSampleIds: parseResult.data.slice(0, 5).map(item => ({ id: item.id, value: item.value })),
+          transferredIdsBeforeMatch: Array.from(transferredIds)
+        });
+
+        if (localResults.hasMatches) {
+          results = localResults.matches;
+        }
+      }
+
+      // PRIORITY 2: Only search database if nothing found in spreadsheet
       if (results.length === 0) {
-        // Check if there's any data loaded first
+        logger.debug('No matches in spreadsheet, trying database search...');
+
+        results = await performanceLogger.measureAsync('conference_search', async () => {
+          return await dataAdapter.searchConferenceValue(
+            searchValue,
+            dashboardFilters.selectedDate || formatDateForQuery(new Date())
+          );
+        });
+
+        logger.debug('Database search results:', {
+          resultsLength: results.length,
+          results: results.slice(0, 3)
+        });
+      }
+
+      if (results.length === 0) {
+        // Original error handling
         if (!parseResult || !parseResult.data || parseResult.data.length === 0) {
           setSearchError('Nenhuma planilha carregada. Por favor, carregue uma planilha na aba "Conferência Bancária" primeiro.');
         } else {
@@ -252,6 +389,7 @@ export const Dashboard: React.FC = () => {
 
       if (results.length === 1) {
         // Auto-select if only one match - use transferToConference for proper handling
+        logger.debug('Auto-transferring single match:', results[0]);
         await transferToConference(results[0]);
         setSearchMatches([]);
       } else {
@@ -389,11 +527,20 @@ export const Dashboard: React.FC = () => {
 
   // Create value index when parseResult is loaded from persistent state
   useEffect(() => {
+    logger.debug('parseResult effect triggered:', {
+      parseResultExists: !!parseResult,
+      parseResultData: parseResult?.data?.length || 0,
+      valueIndexExists: !!valueIndex,
+      parseResultSample: parseResult?.data?.slice(0, 3)
+    });
+
     if (parseResult && parseResult.data && parseResult.data.length > 0 && !valueIndex) {
       logger.debug('Creating value index from persistent data...');
       const index = createValueIndex(parseResult.data);
       setValueIndex(index);
-      logger.debug(`Índice criado com ${index.size} valores únicos`);
+      logger.debug(`Índice criado com ${index.size} valores únicos`, {
+        sampleKeys: Array.from(index.keys()).slice(0, 10)
+      });
     }
   }, [parseResult]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -527,6 +674,12 @@ export const Dashboard: React.FC = () => {
             transactionType: row.paymentType
           }
         }));
+
+        logger.debug('Created ValueMatch data with IDs:', {
+          totalRows: convertedData.length,
+          sampleIds: convertedData.slice(0, 5).map(item => item.id),
+          sampleValues: convertedData.slice(0, 5).map(item => ({ id: item.id, value: item.value }))
+        });
 
         // Create compatible ParseResult with ValueMatch[]
         const compatibleParseResult: CompatibleParseResult = {

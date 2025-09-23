@@ -1,12 +1,10 @@
 import * as XLSX from 'xlsx';
-import { ConferenceHistoryEntry } from './indexedDbService';
-import { ActionLog } from '../lib/indexeddb';
+import { ConferenceHistoryEntry } from '../lib/storageAdapter';
 import { formatDateTimeForDisplay, formatToDDMMYYYY } from '../utils/dateFormatter';
 
 export interface ExportData {
   banking?: any[];
   cash?: any[];
-  actions?: ActionLog[];
   history?: ConferenceHistoryEntry[];
   manual?: any[];
 }

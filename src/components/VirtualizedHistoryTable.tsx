@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo } from 'react';
 import { FixedSizeList as List } from 'react-window';
 import { Eye, Download, Filter } from 'lucide-react';
-import { ConferenceHistoryEntry } from '../services/indexedDbService';
+import { ConferenceHistoryEntry } from '../lib/storageAdapter';
 import { useHistoryTableSelectors, TableFilters } from '../hooks/useTableSelectors';
 import { usePersistentState } from '../hooks/usePersistentState';
 

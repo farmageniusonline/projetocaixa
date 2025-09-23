@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from 'react';
-import { ConferenceHistoryEntry } from '../services/indexedDbService';
+import { ConferenceHistoryEntry } from '../lib/storageAdapter';
 
 export interface LookupEntry {
   id: string | number;

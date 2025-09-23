@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import StorageAdapter from '../lib/storageAdapter';
-import { ConferenceHistoryEntry, DailyOperationsSummary } from '../services/indexedDbService';
+import { ConferenceHistoryEntry, DailyOperationsSummary } from '../lib/storageAdapter';
 import { formatToDDMMYYYY, formatForDateInput } from '../utils/dateFormatter';
 import { VirtualizedHistoryTable } from './VirtualizedHistoryTable';
 import { ExportButtons } from './ExportButtons';

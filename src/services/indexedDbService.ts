@@ -900,7 +900,8 @@ export class IndexedDbService {
       let notFoundQuery = db.not_found_history.where({ value_cents: valueCents, user_id: userId });
       let manualQuery = db.manual_entries.where({ value_cents: valueCents, user_id: userId });
 
-      if (date) {
+      // Make date filtering optional - search all dates if date filter fails
+      if (date && date.trim() !== '') {
         bankQuery = bankQuery.and(item => item.day === date);
         cashQuery = cashQuery.and(item => item.day === date);
         notFoundQuery = notFoundQuery.and(item => item.day === date);

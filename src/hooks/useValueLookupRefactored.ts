@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import type { ConferenceHistoryEntry } from '../services/indexedDbService';
+import type { ConferenceHistoryEntry } from '../lib/storageAdapter';
 import { useLookupMap } from './useLookupMap';
 import { useSearchOperations, type SearchOptions, type SearchResult } from './useSearchOperations';
 import { useValueNormalization } from './useValueNormalization';

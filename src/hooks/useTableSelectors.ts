@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { ValueMatch } from '../utils/valueNormalizer';
-import { ConferenceHistoryEntry } from '../services/indexedDbService';
+import { ConferenceHistoryEntry } from '../lib/storageAdapter';
 
 export interface TableFilters {
   dateFilter: string;

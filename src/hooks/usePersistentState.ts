@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 /**
- * Hook para persistir estado no localStorage
- * @param key Chave do localStorage
- * @param defaultValue Valor padrão se não houver no localStorage
- * @param options Opções para serialização customizada
+ * Hook para estado temporário (apenas em memória)
+ * Substitui o antigo localStorage para usar apenas Supabase
+ * @param key Chave (mantida para compatibilidade)
+ * @param defaultValue Valor padrão
+ * @param options Opções (mantidas para compatibilidade)
  * @returns [value, setValue] similar ao useState
  */
 export function usePersistentState<T>(
@@ -15,36 +16,8 @@ export function usePersistentState<T>(
     deserialize?: (value: string) => T;
   }
 ) {
-  const [state, setState] = useState<T>(() => {
-    try {
-      if (typeof window === 'undefined') return defaultValue;
-      const saved = localStorage.getItem(key);
-      if (saved && saved !== 'undefined' && saved !== 'null') {
-        const result = options?.deserialize ? options.deserialize(saved) : JSON.parse(saved);
-        // Validate that the result is not undefined or null unless that's the default
-        if (result !== undefined && result !== null) {
-          return result;
-        }
-      }
-      return defaultValue;
-    } catch (error) {
-      console.warn(`Failed to load ${key} from localStorage:`, error);
-      // Clear potentially corrupted data
-      try {
-        localStorage.removeItem(key);
-      } catch {}
-      return defaultValue;
-    }
-  });
-
-  useEffect(() => {
-    try {
-      const serialized = options?.serialize ? options.serialize(state) : JSON.stringify(state);
-      localStorage.setItem(key, serialized);
-    } catch (error) {
-      console.warn(`Failed to save ${key} to localStorage:`, error);
-    }
-  }, [key, state, options]);
+  // Usar apenas estado em memória - dados persistem no Supabase
+  const [state, setState] = useState<T>(defaultValue);
 
   return [state, setState] as const;
 }

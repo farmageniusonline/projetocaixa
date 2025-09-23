@@ -1,5 +1,4 @@
 import { supabaseDataService } from './supabaseDataService';
-import IndexedDbService from './indexedDbService';
 import { authService } from './authService';
 
 interface SyncStatus {
@@ -26,7 +25,7 @@ class SyncService {
 
   private syncListeners: Set<(status: SyncStatus) => void> = new Set();
   private syncInterval: NodeJS.Timeout | null = null;
-  private indexedDbService = new IndexedDbService();
+  // IndexedDB removed - using only Supabase
 
   constructor() {
     this.initializeSync();

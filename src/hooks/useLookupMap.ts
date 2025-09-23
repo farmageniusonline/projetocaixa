@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from 'react';
-import type { ConferenceHistoryEntry } from '../services/indexedDbService';
+import type { ConferenceHistoryEntry } from '../lib/storageAdapter';
 import { useValueNormalization } from './useValueNormalization';
 import { perfLogger } from '../utils/logger';
 
