@@ -25,7 +25,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
       return null;
     } catch (error) {
-      console.warn('Failed to parse saved user from localStorage:', error);
+      authLogger.warn('Failed to parse saved user from localStorage:', error);
       // Clear corrupted data
       try {
         localStorage.removeItem('auth_user');
@@ -48,7 +48,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       });
 
       if (error) {
-        console.error('Supabase login error:', error.message);
+        authLogger.error('Supabase login error:', error.message);
         setLoginError('Senha ou Usuario Incorretos');
         return false;
       }
@@ -75,7 +75,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             .single();
 
           if (createError) {
-            console.error('Error creating profile:', createError.message);
+            authLogger.error('Error creating profile:', createError.message);
             profile = {
               id: data.user.id,
               username: data.user.email?.split('@')[0] || 'user',
@@ -100,11 +100,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return true;
       }
 
-      console.log('Login failed: No user data returned');
+      authLogger.debug('Login failed: No user data returned');
       setLoginError('Senha ou Usuario Incorretos');
       return false;
     } catch (error) {
-      console.error('Login error:', error);
+      authLogger.error('Login error:', error);
       setLoginError('Senha ou Usuario Incorretos');
       return false;
     } finally {
@@ -120,7 +120,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       await supabase.auth.signOut();
     } catch (error) {
-      console.error('Logout error:', error);
+      authLogger.error('Logout error:', error);
     }
     setUser(null);
     // Remove user from localStorage
@@ -147,7 +147,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               logout();
             }
           } catch (error) {
-            console.warn('Session validation failed:', error);
+            authLogger.warn('Session validation failed:', error);
           }
           return;
         }
@@ -156,7 +156,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
         if (sessionError) {
-          console.warn('Error getting session:', sessionError);
+          authLogger.warn('Error getting session:', sessionError);
           if (mounted) setIsLoading(false);
           return;
         }
@@ -182,7 +182,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               localStorage.setItem('auth_user', JSON.stringify(userData));
             }
           } catch (profileError) {
-            console.warn('Error fetching profile:', profileError);
+            authLogger.warn('Error fetching profile:', profileError);
           }
         }
 
@@ -216,7 +216,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               }
               setIsLoading(false);
             } catch (error) {
-              console.warn('Auth state change error:', error);
+              authLogger.warn('Auth state change error:', error);
               setIsLoading(false);
             }
           }
@@ -224,7 +224,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         subscription = authSubscription;
       } catch (error) {
-        console.error('Auth initialization error:', error);
+        authLogger.error('Auth initialization error:', error);
         if (mounted) setIsLoading(false);
       }
     };
@@ -248,7 +248,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     clearLoginError
   };
 
-  console.log('AuthProvider rendering:', { user, isLoading });
+  authLogger.debug('AuthProvider rendering:', { user, isLoading });
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

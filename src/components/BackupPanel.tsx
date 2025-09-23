@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { backupService, DayBackup } from '../services/backupService';
 import { formatToDDMMYYYY, formatForDateInput, formatDateTimeForDisplay } from '../utils/dateFormatter';
+import { logger } from '../utils/logger';
 import toast from 'react-hot-toast';
 
 interface BackupPanelProps {
@@ -33,7 +34,7 @@ export const BackupPanel: React.FC<BackupPanelProps> = ({
 
       toast.success(`Backup do dia ${backupDate} exportado com sucesso! ${backup.metadata.total_records} registros.`);
     } catch (error) {
-      console.error('Error exporting backup:', error);
+      logger.error('Error exporting backup:', error);
       toast.error(error instanceof Error ? error.message : 'Erro ao exportar backup');
     } finally {
       setIsExporting(false);
@@ -61,7 +62,7 @@ export const BackupPanel: React.FC<BackupPanelProps> = ({
       setBackupPreview(backup);
       toast.success('Backup carregado e validado com sucesso!');
     } catch (error) {
-      console.error('Error reading backup file:', error);
+      logger.error('Error reading backup file:', error);
       toast.error(error instanceof Error ? error.message : 'Erro ao ler arquivo de backup');
       setSelectedFile(null);
     }
@@ -81,7 +82,7 @@ export const BackupPanel: React.FC<BackupPanelProps> = ({
         toast.success(`Backup importado com sucesso! ${results.imported} registros importados, ${results.skipped} ignorados.`);
       }
     } catch (error) {
-      console.error('Error importing backup:', error);
+      logger.error('Error importing backup:', error);
       toast.error(error instanceof Error ? error.message : 'Erro ao importar backup');
     } finally {
       setIsImporting(false);

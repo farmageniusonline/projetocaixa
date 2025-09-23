@@ -8,6 +8,8 @@ import { useKeyboardShortcuts, useFocusRestore } from '../hooks/useKeyboardShort
 import { formatCurrency } from '../utils/valueNormalizer';
 import { launchesService, Launch as SupabaseLaunch } from '../services/launchesService';
 import toast from 'react-hot-toast';
+import { useDebounce } from '../hooks/useDebounce';
+import { logger } from '../utils/logger';
 
 type PaymentMethod =
   | 'credit_1x'
@@ -34,6 +36,7 @@ interface Launch {
   credit5x?: number;
   timestamp: Date;
   observation?: string; // Campo observação para saídas
+  needsSync?: boolean; // Indica se precisa ser sincronizado com Supabase
 }
 
 interface ConferenceItem {
@@ -73,10 +76,14 @@ const loadLaunches = (): Launch[] => {
             const parsed = new Date(item.date);
             if (!isNaN(parsed.getTime())) {
               date = parsed;
+            } else {
+              logger.warn('Invalid date value:', item.date, 'using current date as fallback');
+              date = new Date();
             }
           }
         } catch {
-          console.warn('Invalid date value:', item.date);
+          logger.warn('Invalid date value:', item.date, 'using current date as fallback');
+          date = new Date();
         }
 
         try {
@@ -84,10 +91,14 @@ const loadLaunches = (): Launch[] => {
             const parsed = new Date(item.timestamp);
             if (!isNaN(parsed.getTime())) {
               timestamp = parsed;
+            } else {
+              logger.warn('Invalid timestamp value:', item.timestamp, 'using current time as fallback');
+              timestamp = new Date();
             }
           }
         } catch {
-          console.warn('Invalid timestamp value:', item.timestamp);
+          logger.warn('Invalid timestamp value:', item.timestamp, 'using current time as fallback');
+          timestamp = new Date();
         }
 
         return {
@@ -98,7 +109,7 @@ const loadLaunches = (): Launch[] => {
       });
     }
   } catch (error) {
-    console.error('Error loading launches:', error);
+    logger.error('Error loading launches:', error);
   }
   return [];
 };
@@ -107,7 +118,7 @@ const saveLaunches = (launches: Launch[]) => {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(launches));
   } catch (error) {
-    console.error('Error saving launches:', error);
+    logger.error('Error saving launches:', error);
   }
 };
 
@@ -138,6 +149,78 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
   const valueInputRef = useRef<HTMLInputElement>(null);
   const { saveFocus, restoreFocus } = useFocusRestore();
 
+  // Debounce value validation to improve performance
+  const debouncedValue = useDebounce(value, 300); // 300ms delay
+
+  // Helper function to validate dates
+  const isValidDate = (date: any): date is Date => {
+    return date instanceof Date && !isNaN(date.getTime());
+  };
+
+  // Auto-sync pending launches when connection is restored
+  const syncPendingLaunches = useCallback(async () => {
+    const pendingLaunches = launches.filter(l => l.needsSync && l.id.startsWith('launch-'));
+
+    if (pendingLaunches.length === 0) {
+      return;
+    }
+
+    logger.debug(`🔄 Tentando sincronizar ${pendingLaunches.length} lançamentos pendentes...`);
+    let syncedCount = 0;
+
+    for (const pendingLaunch of pendingLaunches) {
+      try {
+        // Validate date before processing
+        if (!isValidDate(pendingLaunch.date)) {
+          logger.warn('Skipping pending launch with invalid date:', pendingLaunch.id, pendingLaunch.date);
+          continue;
+        }
+
+        const launchData: SupabaseLaunch = {
+          launch_date: pendingLaunch.date.toISOString().split('T')[0],
+          payment_type: pendingLaunch.paymentType,
+          is_link: pendingLaunch.isLink || false,
+          value: pendingLaunch.value,
+          credit_1x: pendingLaunch.credit1x || 0,
+          credit_2x: pendingLaunch.credit2x || 0,
+          credit_3x: pendingLaunch.credit3x || 0,
+          credit_4x: pendingLaunch.credit4x || 0,
+          credit_5x: pendingLaunch.credit5x || 0,
+          observation: pendingLaunch.observation,
+          is_outgoing: pendingLaunch.value < 0,
+        };
+
+        const response = await launchesService.createLaunch(launchData);
+
+        if (response.success && response.data) {
+          // Update the launch with Supabase ID and remove needsSync flag
+          const updatedLaunch: Launch = {
+            ...pendingLaunch,
+            id: response.data.id || pendingLaunch.id,
+            timestamp: new Date(response.data.created_at || Date.now()),
+            needsSync: false,
+          };
+
+          // Update in launches array
+          const updatedLaunches = launches.map(l =>
+            l.id === pendingLaunch.id ? updatedLaunch : l
+          );
+          setLaunches(updatedLaunches);
+          saveLaunches(updatedLaunches);
+          syncedCount++;
+        }
+      } catch (error) {
+        logger.error(`Erro ao sincronizar lançamento ${pendingLaunch.id}:`, error);
+        // Keep the launch marked for sync
+      }
+    }
+
+    if (syncedCount > 0) {
+      toast.success(`✅ ${syncedCount} lançamento(s) sincronizado(s) automaticamente`);
+      logger.debug(`✅ ${syncedCount} lançamentos sincronizados com sucesso`);
+    }
+  }, [launches, setLaunches]);
+
   // Load launches from Supabase on component mount and when filter date changes
   // Moved after loadLaunchesFromSupabase definition to avoid reference error
 
@@ -145,14 +228,34 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
   const getFilterDate = useCallback(() => {
     // Use global filter date if set, otherwise use operation date
     if (dashboardFilters.selectedDate) {
-      const [year, month, day] = dashboardFilters.selectedDate.split('-');
-      return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+      try {
+        const [year, month, day] = dashboardFilters.selectedDate.split('-');
+        const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+        if (!isNaN(date.getTime())) {
+          return date;
+        }
+      } catch (error) {
+        logger.warn('Invalid selectedDate format:', dashboardFilters.selectedDate);
+      }
     }
 
     // Parse operation date (DD/MM/YYYY format)
     if (operationDate) {
-      const [day, month, year] = operationDate.split('/');
-      return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+      try {
+        const [day, month, year] = operationDate.split('/');
+        const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+        if (!isNaN(date.getTime())) {
+          return date;
+        }
+      } catch (error) {
+        logger.warn('Invalid operationDate format:', operationDate);
+      }
+    }
+
+    // Fallback to current date and ensure it's valid
+    if (!currentDate || isNaN(currentDate.getTime())) {
+      logger.warn('Invalid currentDate, using today as fallback');
+      return new Date();
     }
 
     return currentDate;
@@ -204,11 +307,11 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
         const localData = loadLaunches();
         if (localData.length > 0) {
           setLaunches(localData);
-          console.log('Using local data as fallback');
+          logger.debug('Using local data as fallback');
         }
       }
     } catch (error) {
-      console.error('Error loading launches from Supabase:', error);
+      logger.error('Error loading launches from Supabase:', error);
       // Don't show error toast on initial load - just use local data
       // toast.error('Erro ao carregar lançamentos do servidor');
 
@@ -216,7 +319,7 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
       const localData = loadLaunches();
       if (localData.length > 0) {
         setLaunches(localData);
-        console.log('Using local data due to Supabase error');
+        logger.debug('Using local data due to Supabase error');
       }
     } finally {
       setIsLoading(false);
@@ -239,7 +342,7 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
         setShowDeleteModal(false);
       }
     } catch (error) {
-      console.error('Error deleting all launches:', error);
+      logger.error('Error deleting all launches:', error);
       toast.error('Erro ao excluir todos os lançamentos');
     } finally {
       setIsDeleting(false);
@@ -265,7 +368,7 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
         setShowDeleteModal(false);
       }
     } catch (error) {
-      console.error('Error deleting launches by date:', error);
+      logger.error('Error deleting launches by date:', error);
       toast.error('Erro ao excluir lançamentos da data');
     } finally {
       setIsDeleting(false);
@@ -298,8 +401,16 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
         return;
       }
 
-      // Convert local format to Supabase format
-      const launchesToSync: SupabaseLaunch[] = localLaunches.map((launch): SupabaseLaunch => ({
+      // Convert local format to Supabase format - filter out invalid dates
+      const validLaunches = localLaunches.filter(launch => {
+        if (!isValidDate(launch.date)) {
+          logger.warn('Skipping launch with invalid date for sync:', launch.id, launch.date);
+          return false;
+        }
+        return true;
+      });
+
+      const launchesToSync: SupabaseLaunch[] = validLaunches.map((launch): SupabaseLaunch => ({
         launch_date: launch.date.toISOString().split('T')[0],
         payment_type: launch.paymentType,
         is_link: launch.isLink,
@@ -323,7 +434,7 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
         setLastSyncTime(new Date());
       }
     } catch (error) {
-      console.error('Error syncing to Supabase:', error);
+      logger.error('Error syncing to Supabase:', error);
       toast.error('Erro ao sincronizar com o servidor');
     } finally {
       setIsSyncing(false);
@@ -335,15 +446,37 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
     loadLaunchesFromSupabase();
   }, [loadLaunchesFromSupabase]);
 
-  // Using the centralized formatCurrency function from valueNormalizer
+  // Auto-sync pending launches periodically
+  useEffect(() => {
+    const syncInterval = setInterval(() => {
+      const pendingCount = launches.filter(l => l.needsSync).length;
+      if (pendingCount > 0) {
+        logger.debug(`🔄 Auto-sync: ${pendingCount} lançamentos pendentes encontrados`);
+        syncPendingLaunches();
+      }
+    }, 30000); // Check every 30 seconds
 
-  const handleValueChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const input = e.target.value;
-    setValue(input);
+    return () => clearInterval(syncInterval);
+  }, [launches, syncPendingLaunches]);
 
-    // Real-time validation using Zod
-    if (input.trim()) {
-      const validation = safeValidate(formSchemas.conferenceValue, { value: input });
+  // Sync on window focus (when user returns to tab)
+  useEffect(() => {
+    const handleFocus = () => {
+      const pendingCount = launches.filter(l => l.needsSync).length;
+      if (pendingCount > 0) {
+        logger.debug('🔄 Janela focada - tentando sincronizar lançamentos pendentes');
+        syncPendingLaunches();
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [launches, syncPendingLaunches]);
+
+  // Debounced validation effect
+  useEffect(() => {
+    if (debouncedValue.trim()) {
+      const validation = safeValidate(formSchemas.conferenceValue, { value: debouncedValue });
       if (!validation.success) {
         setError(validation.error);
       } else {
@@ -352,6 +485,14 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
     } else {
       setError(null);
     }
+  }, [debouncedValue]);
+
+  // Using the centralized formatCurrency function from valueNormalizer
+
+  const handleValueChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const input = e.target.value;
+    setValue(input);
+    // Validation is now handled by debounced effect above
   };
 
   const handleAddLaunch = useCallback(async () => {
@@ -391,6 +532,25 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
 
     const filterDate = getFilterDate();
 
+    // Create local launch object immediately
+    const localLaunch: Launch = {
+      id: `launch-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      date: filterDate,
+      paymentType: `${paymentTypeLabel}${linkStatus}`,
+      isLink: selectedMethod.startsWith('credit') ? isLink || false : undefined,
+      value: numericValue,
+      timestamp: new Date(),
+      observation: selectedMethod === 'outgoing' ? observation.trim() : undefined,
+    };
+
+    // Para cartões de crédito, usar sempre valor positivo nas parcelas específicas
+    const creditValue = Math.abs(numericValue);
+    if (selectedMethod === 'credit_1x') localLaunch.credit1x = creditValue;
+    if (selectedMethod === 'credit_2x') localLaunch.credit2x = creditValue;
+    if (selectedMethod === 'credit_3x') localLaunch.credit3x = creditValue;
+    if (selectedMethod === 'credit_4x') localLaunch.credit4x = creditValue;
+    if (selectedMethod === 'credit_5x') localLaunch.credit5x = creditValue;
+
     // Prepare launch data for Supabase
     const launchData: SupabaseLaunch = {
       launch_date: filterDate.toISOString().split('T')[0],
@@ -406,84 +566,88 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
       is_outgoing: selectedMethod === 'outgoing',
     };
 
-    // Save to Supabase
+    // Add to state and save locally immediately for better UX
+    const updatedLaunches = [localLaunch, ...launches];
+    setLaunches(updatedLaunches);
+    saveLaunches(updatedLaunches);
+
+    // Prepare conference item for Conferência de Caixa
+    const conferenceItem = {
+      id: localLaunch.id,
+      date: formatForDisplay(localLaunch.date),
+      description: localLaunch.paymentType,
+      value: localLaunch.value,
+      originalHistory: 'Manual',
+      source: 'manual',
+      cpf: '',
+      conferredAt: localLaunch.date,
+      conferredId: localLaunch.id,
+      observation: localLaunch.observation
+    };
+
+    // Check for duplicates before adding
+    const isDuplicate = conferredItems.some(item => item.conferredId === localLaunch.id);
+    let conferenceItemSent = false;
+
+    // Don't send to conference here - wait for Supabase response
+    // This prevents duplicate entries
+
+    // Try to save to Supabase in background
     setIsSyncing(true);
     try {
       const response = await launchesService.createLaunch(launchData);
 
       if (response.success && response.data) {
-        // Convert back to local format and add to state
-        const newLaunch: Launch = {
-          id: response.data.id || '',
-          date: new Date(response.data.launch_date),
-          paymentType: response.data.payment_type,
-          isLink: response.data.is_link,
-          value: response.data.value,
-          credit1x: response.data.credit_1x,
-          credit2x: response.data.credit_2x,
-          credit3x: response.data.credit_3x,
-          credit4x: response.data.credit_4x,
-          credit5x: response.data.credit_5x,
+        // Update the local launch with the Supabase ID
+        const updatedLaunch: Launch = {
+          ...localLaunch,
+          id: response.data.id || localLaunch.id,
           timestamp: new Date(response.data.created_at || Date.now()),
-          observation: response.data.observation,
         };
 
-        // Update state immediately to show in table
-        const updatedLaunches = [newLaunch, ...launches];
-        setLaunches(updatedLaunches);
+        // Update the launch in state with Supabase ID
+        const finalLaunches = updatedLaunches.map(l =>
+          l.id === localLaunch.id ? updatedLaunch : l
+        );
+        setLaunches(finalLaunches);
+        saveLaunches(finalLaunches);
 
-        // Send to Conferência de Caixa
-        const conferenceItem = {
-          id: newLaunch.id,
-          date: formatForDisplay(newLaunch.date),
-          description: newLaunch.paymentType,
-          value: newLaunch.value,
-          originalHistory: 'Manual',
-          source: 'manual',
-          cpf: '',
-          conferredAt: newLaunch.date, // Use launch date, not current date
-          conferredId: newLaunch.id,
-          observation: newLaunch.observation
-        };
-
-        // Check for duplicates before adding
-        const isDuplicate = conferredItems.some(item => item.conferredId === newLaunch.id);
-        if (!isDuplicate) {
-          onLaunchAdded(conferenceItem);
-          setSuccess('Lançamento criado e enviado para Conferência de Caixa');
-        } else {
-          setSuccess('Lançamento salvo no Supabase com sucesso');
+        // Send to conference with Supabase ID (only if not duplicate)
+        if (response.data.id && !isDuplicate) {
+          onLaunchAdded({
+            ...conferenceItem,
+            id: response.data.id,
+            conferredId: response.data.id
+          });
+          conferenceItemSent = true;
         }
+
+        setSuccess('✅ Lançamento salvo no Supabase e enviado para Conferência de Caixa');
+        toast.success('Lançamento sincronizado com sucesso');
       } else {
-        throw new Error(response.error || 'Erro ao salvar lançamento');
+        throw new Error(response.error || 'Erro ao salvar no Supabase');
       }
     } catch (error) {
-      console.error('Error saving launch:', error);
-      // Fallback: save locally if Supabase fails
-      const localLaunch: Launch = {
-        id: `launch-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        date: filterDate,
-        paymentType: `${paymentTypeLabel}${linkStatus}`,
-        isLink: selectedMethod.startsWith('credit') ? isLink || false : undefined,
-        value: numericValue,
-        timestamp: new Date(),
-        observation: selectedMethod === 'outgoing' ? observation.trim() : undefined,
-      };
+      logger.error('Error saving launch to Supabase:', error);
+      // Keep local data and mark for later sync
+      const pendingLaunch = { ...localLaunch, needsSync: true };
+      const finalLaunches = updatedLaunches.map(l =>
+        l.id === localLaunch.id ? pendingLaunch : l
+      );
+      setLaunches(finalLaunches);
+      saveLaunches(finalLaunches);
 
-      // Para cartões de crédito, usar sempre valor positivo nas parcelas específicas
-      const creditValue = Math.abs(numericValue);
-      if (selectedMethod === 'credit_1x') localLaunch.credit1x = creditValue;
-      if (selectedMethod === 'credit_2x') localLaunch.credit2x = creditValue;
-      if (selectedMethod === 'credit_3x') localLaunch.credit3x = creditValue;
-      if (selectedMethod === 'credit_4x') localLaunch.credit4x = creditValue;
-      if (selectedMethod === 'credit_5x') localLaunch.credit5x = creditValue;
+      setSuccess('📱 Lançamento salvo localmente - será sincronizado automaticamente');
+      toast.warning('Erro ao conectar com servidor. Dados salvos localmente.');
 
-      const updatedLaunches = [localLaunch, ...launches];
-      setLaunches(updatedLaunches);
-      saveLaunches(updatedLaunches);
+      // Set error message for user
+      setError('💾 Offline: Lançamento salvo localmente. Sincronizará automaticamente quando conectar.');
 
-      toast.error('Erro ao salvar no servidor. Lançamento salvo localmente.');
-      setError('Lançamento salvo localmente. Sincronize quando a conexão for restabelecida.');
+      // Send to conference only if not already sent (for offline case)
+      if (!conferenceItemSent && !isDuplicate) {
+        onLaunchAdded(conferenceItem);
+        conferenceItemSent = true;
+      }
     } finally {
       setIsSyncing(false);
     }
@@ -495,7 +659,10 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
       valueInputRef.current.focus();
     }
 
-    setTimeout(() => setSuccess(null), 3000);
+    setTimeout(() => {
+      setSuccess(null);
+      setError(null);
+    }, 5000);
   }, [selectedMethod, isLink, value, observation, getFilterDate, launches, conferredItems, onLaunchAdded, paymentMethods]);
 
   const handleClearFilters = useCallback(() => {
@@ -556,34 +723,62 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
     setShowUndoModal(true);
   };
 
-  const handleConfirmUndo = () => {
+  const handleConfirmUndo = async () => {
     if (!launchToUndo) return;
 
-    // Remove from launches
-    const updatedLaunches = launches.filter(l => l.id !== launchToUndo.id);
-    setLaunches(updatedLaunches);
-    saveLaunches(updatedLaunches);
+    setIsSyncing(true);
+    try {
+      // Delete from Supabase first
+      const response = await launchesService.deleteLaunch(launchToUndo.id);
 
-    // Notify parent to remove from Conferência de Caixa
-    if (onLaunchAdded) {
-      // Send a removal signal (negative value or special flag)
-      onLaunchAdded({
-        id: launchToUndo.id,
-        conferredId: launchToUndo.id,
-        remove: true
-      });
+      if (response.success) {
+        // Remove from local state
+        const updatedLaunches = launches.filter(l => l.id !== launchToUndo.id);
+        setLaunches(updatedLaunches);
+        saveLaunches(updatedLaunches);
+
+        // Notify parent to remove from Conferência de Caixa
+        if (onLaunchAdded) {
+          // Send a removal signal (negative value or special flag)
+          onLaunchAdded({
+            id: launchToUndo.id,
+            conferredId: launchToUndo.id,
+            remove: true
+          } as ConferenceItem);
+        }
+
+        setSuccess('Lançamento desfeito com sucesso');
+        toast.success('Lançamento removido do banco de dados');
+      } else {
+        // Fallback: remove only locally if Supabase fails
+        const updatedLaunches = launches.filter(l => l.id !== launchToUndo.id);
+        setLaunches(updatedLaunches);
+        saveLaunches(updatedLaunches);
+
+        setSuccess('Lançamento removido localmente');
+        toast.warning('Erro ao remover do servidor. Removido apenas localmente.');
+      }
+    } catch (error) {
+      logger.error('Error in handleConfirmUndo:', error);
+      // Fallback: remove only locally
+      const updatedLaunches = launches.filter(l => l.id !== launchToUndo.id);
+      setLaunches(updatedLaunches);
+      saveLaunches(updatedLaunches);
+
+      setSuccess('Lançamento removido localmente');
+      toast.error('Erro ao remover do servidor. Removido apenas localmente.');
+    } finally {
+      setIsSyncing(false);
+      setShowUndoModal(false);
+      setLaunchToUndo(null);
+
+      // Return focus to input
+      if (valueInputRef.current) {
+        valueInputRef.current.focus();
+      }
+
+      setTimeout(() => setSuccess(null), 3000);
     }
-
-    setSuccess('Lançamento desfeito com sucesso');
-    setShowUndoModal(false);
-    setLaunchToUndo(null);
-
-    // Return focus to input
-    if (valueInputRef.current) {
-      valueInputRef.current.focus();
-    }
-
-    setTimeout(() => setSuccess(null), 3000);
   };
 
   const handleCancelUndo = () => {
@@ -603,6 +798,17 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
   const filterDate = getFilterDate();
   const filteredLaunches = sortedLaunches.filter(launch => {
     // Filter by date - normalize to YYYY-MM-DD for comparison
+    // Validate dates before calling toISOString to prevent Invalid time value error
+    if (!isValidDate(launch.date)) {
+      logger.warn('Invalid launch date found:', launch.date, 'for launch:', launch.id);
+      return false; // Skip launches with invalid dates
+    }
+
+    if (!isValidDate(filterDate)) {
+      logger.warn('Invalid filter date:', filterDate);
+      return false;
+    }
+
     const launchDateStr = launch.date.toISOString().split('T')[0];
     const filterDateStr = filterDate.toISOString().split('T')[0];
     const dateMatches = launchDateStr === filterDateStr;
@@ -639,6 +845,9 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
 
     return dateMatches && typeMatches;
   });
+
+  // Count pending launches for sync status
+  const pendingLaunchesCount = launches.filter(l => l.needsSync).length;
 
   const totals = {
     general: filteredLaunches.reduce((sum, item) => sum + item.value, 0),
@@ -943,6 +1152,11 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
                 <h2 className="text-lg font-semibold text-gray-100">Lançamentos Manuais</h2>
                 <p className="text-sm text-gray-400 mt-1">
                   {filteredLaunches.length} lançamento(s) para {formatForDisplay(filterDate)}
+                  {pendingLaunchesCount > 0 && (
+                    <span className="ml-2 text-yellow-400">
+                      • {pendingLaunchesCount} pendente(s) de sincronização
+                    </span>
+                  )}
                   {lastSyncTime && (
                     <span className="ml-2 text-green-400">
                       • Última sincronização: {lastSyncTime.toLocaleTimeString()}
@@ -953,6 +1167,32 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
 
               {/* Sync Controls */}
               <div className="flex items-center space-x-2">
+                {pendingLaunchesCount > 0 && (
+                  <button
+                    onClick={syncPendingLaunches}
+                    disabled={isSyncing}
+                    className="px-3 py-1 text-xs bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-600 text-white rounded-md transition-colors flex items-center space-x-1"
+                    title="Sincronizar lançamentos pendentes"
+                  >
+                    {isSyncing ? (
+                      <>
+                        <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span>Sincronizando</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        <span>Sync ({pendingLaunchesCount})</span>
+                      </>
+                    )}
+                  </button>
+                )}
+
                 <button
                   onClick={loadLaunchesFromSupabase}
                   disabled={isLoading}
@@ -1158,8 +1398,14 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
                         {formatForDisplay(launch.date)}
                       </td>
                       <td className="px-6 py-4">
-                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-700 text-gray-300">
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                          launch.needsSync
+                            ? 'bg-yellow-900/30 text-yellow-400 border border-yellow-600'
+                            : 'bg-gray-700 text-gray-300'
+                        }`}>
+                          {launch.needsSync && '⏳ '}
                           {launch.paymentType}
+                          {launch.needsSync && ' (pendente)'}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right font-mono">
@@ -1269,13 +1515,25 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
                 <div className="flex space-x-3">
                   <button
                     onClick={handleConfirmUndo}
-                    className="flex-1 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-red-500 transition-colors"
+                    disabled={isSyncing}
+                    className="flex-1 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-red-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Confirmar
+                    {isSyncing ? (
+                      <div className="flex items-center justify-center">
+                        <svg className="animate-spin h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Removendo...
+                      </div>
+                    ) : (
+                      'Confirmar'
+                    )}
                   </button>
                   <button
                     onClick={handleCancelUndo}
-                    className="flex-1 px-4 py-2 text-sm font-medium text-gray-300 bg-gray-700 border border-gray-600 rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-gray-500 transition-colors"
+                    disabled={isSyncing}
+                    className="flex-1 px-4 py-2 text-sm font-medium text-gray-300 bg-gray-700 border border-gray-600 rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-gray-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Cancelar
                   </button>

@@ -1,3 +1,5 @@
+import { logger } from './logger';
+
 export interface PerformanceMetric {
   id: string;
   operation: OperationType;
@@ -244,7 +246,7 @@ class PerformanceLogger {
     };
 
     request.onerror = () => {
-      console.error('Failed to initialize performance metrics database:', request.error);
+      logger.error('Failed to initialize performance metrics database:', request.error);
     };
   }
 
@@ -260,12 +262,12 @@ class PerformanceLogger {
       store.add(metric);
 
       transaction.onerror = () => {
-        console.error('Failed to save performance metric:', transaction.error);
+        logger.error('Failed to save performance metric:', transaction.error);
       };
     };
 
     request.onerror = () => {
-      console.error('Failed to open performance metrics database:', request.error);
+      logger.error('Failed to open performance metrics database:', request.error);
     };
   }
 
@@ -293,12 +295,12 @@ class PerformanceLogger {
       };
 
       transaction.onerror = () => {
-        console.error('Failed to clean old performance metrics:', transaction.error);
+        logger.error('Failed to clean old performance metrics:', transaction.error);
       };
     };
 
     request.onerror = () => {
-      console.error('Failed to open performance metrics database for cleanup:', request.error);
+      logger.error('Failed to open performance metrics database for cleanup:', request.error);
     };
   }
 

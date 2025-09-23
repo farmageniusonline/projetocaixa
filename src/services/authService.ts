@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { logger } from '../utils/logger';
 import type { User, Session } from '@supabase/supabase-js';
 
 export interface AuthCredentials {
@@ -38,11 +39,11 @@ class AuthService {
       this.currentUser = session?.user ?? null;
 
       if (event === 'SIGNED_IN') {
-        console.log('User signed in:', session?.user?.email);
+        logger.debug('User signed in:', session?.user?.email);
       } else if (event === 'SIGNED_OUT') {
-        console.log('User signed out');
+        logger.debug('User signed out');
       } else if (event === 'TOKEN_REFRESHED') {
-        console.log('Token refreshed');
+        logger.debug('Token refreshed');
       }
     });
   }
@@ -77,13 +78,13 @@ class AuthService {
           ]);
 
         if (profileError) {
-          console.error('Error creating profile:', profileError);
+          logger.error('Error creating profile:', profileError);
         }
       }
 
       return { data, error: null };
     } catch (error) {
-      console.error('Sign up error:', error);
+      logger.error('Sign up error:', error);
       return { data: null, error };
     }
   }
@@ -102,7 +103,7 @@ class AuthService {
 
       return { data, error: null };
     } catch (error) {
-      console.error('Sign in error:', error);
+      logger.error('Sign in error:', error);
       return { data: null, error };
     }
   }
@@ -117,7 +118,7 @@ class AuthService {
 
       return { error: null };
     } catch (error) {
-      console.error('Sign out error:', error);
+      logger.error('Sign out error:', error);
       return { error };
     }
   }
@@ -132,7 +133,7 @@ class AuthService {
 
       return { error: null };
     } catch (error) {
-      console.error('Reset password error:', error);
+      logger.error('Reset password error:', error);
       return { error };
     }
   }
@@ -147,7 +148,7 @@ class AuthService {
 
       return { error: null };
     } catch (error) {
-      console.error('Update password error:', error);
+      logger.error('Update password error:', error);
       return { error };
     }
   }
@@ -174,7 +175,7 @@ class AuthService {
         isActive: data.is_active
       };
     } catch (error) {
-      console.error('Get profile error:', error);
+      logger.error('Get profile error:', error);
       return null;
     }
   }
@@ -198,7 +199,7 @@ class AuthService {
 
       return { error: null };
     } catch (error) {
-      console.error('Update profile error:', error);
+      logger.error('Update profile error:', error);
       return { error };
     }
   }
@@ -224,7 +225,7 @@ class AuthService {
     const { data: { session }, error } = await supabase.auth.refreshSession();
 
     if (error) {
-      console.error('Refresh session error:', error);
+      logger.error('Refresh session error:', error);
       return { session: null, error };
     }
 

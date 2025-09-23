@@ -8,6 +8,7 @@ import {
   DaySelection,
   ActionLog
 } from '../lib/indexeddb';
+import { dbLogger as logger } from '../utils/logger';
 import { generateManualId, generateOriginHashSync, generateConferenceId } from '../utils/idGenerator';
 import { formatToDDMMYYYY } from '../utils/dateFormatter';
 import { formSchemas, safeValidate } from '../utils/validationSchemas';
@@ -114,7 +115,7 @@ export class IndexedDbService {
 
       await db.action_log.add(logEntry);
     } catch (error) {
-      console.error('Error logging action:', error);
+      logger.error('Error logging action:', error);
       // Don't throw error here to avoid breaking the main operation
     }
   }
@@ -197,7 +198,7 @@ export class IndexedDbService {
         );
       });
     } catch (error) {
-      console.error('Error saving banking upload:', error);
+      logger.error('Error saving banking upload:', error);
 
       // Log da ação com erro
       await this.logAction(
@@ -270,7 +271,7 @@ export class IndexedDbService {
         }
       );
     } catch (error) {
-      console.error('Error saving cash conference:', error);
+      logger.error('Error saving cash conference:', error);
 
       // Log da ação com erro
       await this.logAction(
@@ -327,7 +328,7 @@ export class IndexedDbService {
         }
       );
     } catch (error) {
-      console.error('Error saving not found value:', error);
+      logger.error('Error saving not found value:', error);
 
       // Log da ação com erro
       await this.logAction(
@@ -413,7 +414,7 @@ export class IndexedDbService {
       performanceLogger.endOperation(saveOpId);
     } catch (error) {
       performanceLogger.endOperation(saveOpId);
-      console.error('Error saving manual entry:', error);
+      logger.error('Error saving manual entry:', error);
 
       // Log da ação com erro
       await this.logAction(
@@ -539,7 +540,7 @@ export class IndexedDbService {
         return timeB - timeA;
       });
     } catch (error) {
-      console.error('Error fetching history:', error);
+      logger.error('Error fetching history:', error);
       throw error;
     }
   }
@@ -597,7 +598,7 @@ export class IndexedDbService {
         total_value: bankingTotalValue + cashConferredValue + manualEntriesValue
       };
     } catch (error) {
-      console.error('Error calculating daily summary:', error);
+      logger.error('Error calculating daily summary:', error);
       throw error;
     }
   }
@@ -666,7 +667,7 @@ export class IndexedDbService {
         );
       });
     } catch (error) {
-      console.error('Error transferring banking to cash:', error);
+      logger.error('Error transferring banking to cash:', error);
       const errorMessage = `Falha na transferência: ${error instanceof Error ? error.message : 'Erro desconhecido'}`;
 
       // Log da ação com erro
@@ -727,7 +728,7 @@ export class IndexedDbService {
         );
       });
     } catch (error) {
-      console.error('Error undoing manual entry:', error);
+      logger.error('Error undoing manual entry:', error);
       const errorMessage = `Falha ao desfazer lançamento: ${error instanceof Error ? error.message : 'Erro desconhecido'}`;
 
       // Log da ação com erro
@@ -785,7 +786,7 @@ export class IndexedDbService {
           break;
       }
     } catch (error) {
-      console.error('Error updating conference status:', error);
+      logger.error('Error updating conference status:', error);
       throw error;
     }
   }
@@ -803,7 +804,7 @@ export class IndexedDbService {
         last_accessed: new Date().toISOString()
       });
     } catch (error) {
-      console.error('Error saving day selection:', error);
+      logger.error('Error saving day selection:', error);
       throw error;
     }
   }
@@ -815,7 +816,7 @@ export class IndexedDbService {
       const selection = await db.day_selection.where({ day, user_id: userId }).first();
       return selection || null;
     } catch (error) {
-      console.error('Error getting day selection:', error);
+      logger.error('Error getting day selection:', error);
       return null;
     }
   }
@@ -847,7 +848,7 @@ export class IndexedDbService {
         await db.manual_entries.where({ day: date, user_id: userId }).delete();
       });
     } catch (error) {
-      console.error('Error clearing day history:', error);
+      logger.error('Error clearing day history:', error);
       throw error;
     }
   }
@@ -882,7 +883,7 @@ export class IndexedDbService {
           break;
       }
     } catch (error) {
-      console.error('Error deleting history entry:', error);
+      logger.error('Error deleting history entry:', error);
       throw error;
     }
   }
@@ -980,7 +981,7 @@ export class IndexedDbService {
         new Date(b.operation_timestamp || '').getTime() - new Date(a.operation_timestamp || '').getTime()
       );
     } catch (error) {
-      console.error('Error searching by value:', error);
+      logger.error('Error searching by value:', error);
       throw error;
     }
   }
@@ -1012,7 +1013,7 @@ export class IndexedDbService {
         total_storage_mb: Math.round(estimation / 1000) / 1000 // KB para MB
       };
     } catch (error) {
-      console.error('Error getting stats:', error);
+      logger.error('Error getting stats:', error);
       throw error;
     }
   }

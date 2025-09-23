@@ -7,6 +7,8 @@ import type {
 } from '../lib/supabase';
 import { normalizeValue } from '../utils/valueNormalizer';
 import { performanceLogger } from '../utils/performanceLogger';
+import { dbLogger as logger } from '../utils/logger';
+import { queryCache, userDataCache } from './CacheService';
 
 export interface FileUploadResult {
   fileId: string;
@@ -104,7 +106,7 @@ class SupabaseDataService {
         totalValue: fileData.total_value
       };
     } catch (error) {
-      console.error('Error uploading banking file:', error);
+      logger.error('Error uploading banking file:', error);
       throw error;
     }
   }
@@ -112,6 +114,14 @@ class SupabaseDataService {
   // Transaction Operations
   async searchTransactionsByValue(value: number, tolerance = 0.01): Promise<BankingTransaction[]> {
     this.ensureAuthenticated();
+
+    // Check cache first
+    const cacheKey = `search_value_${this.userId}_${value}_${tolerance}`;
+    const cached = queryCache.get<BankingTransaction[]>(cacheKey);
+    if (cached) {
+      logger.debug('Cache hit for searchTransactionsByValue', { value, cacheKey });
+      return cached;
+    }
 
     const startTime = performance.now();
 
@@ -123,15 +133,21 @@ class SupabaseDataService {
 
       if (error) throw error;
 
+      const result = data || [];
+
+      // Cache the result for 1 minute (search results can change quickly)
+      queryCache.set(cacheKey, result, 60 * 1000);
+
       const duration = performance.now() - startTime;
       performanceLogger.logOperation('supabase_search_value', duration, {
         value,
-        resultCount: data?.length || 0
+        resultCount: result.length,
+        cached: false
       });
 
-      return data || [];
+      return result;
     } catch (error) {
-      console.error('Error searching transactions:', error);
+      logger.error('Error searching transactions:', error);
       return [];
     }
   }
@@ -152,7 +168,7 @@ class SupabaseDataService {
 
       return data || [];
     } catch (error) {
-      console.error('Error getting transactions by date:', error);
+      logger.error('Error getting transactions by date:', error);
       return [];
     }
   }
@@ -185,13 +201,17 @@ class SupabaseDataService {
 
       if (confError) throw confError;
 
+      // Invalidate related cache entries after successful transfer
+      queryCache.invalidatePattern(`active_conferences_${this.userId}`);
+      queryCache.invalidatePattern(`search_value_${this.userId}_.*`);
+
       return {
         conferenceId: conference.id,
         transactionId: conference.transaction_id,
         value: conference.conferred_value
       };
     } catch (error) {
-      console.error('Error transferring to conference:', error);
+      logger.error('Error transferring to conference:', error);
       return null;
     }
   }
@@ -207,9 +227,13 @@ class SupabaseDataService {
 
       if (error) throw error;
 
+      // Invalidate related cache entries after successful removal
+      queryCache.invalidatePattern(`active_conferences_${this.userId}`);
+      queryCache.invalidatePattern(`search_value_${this.userId}_.*`);
+
       return true;
     } catch (error) {
-      console.error('Error removing from conference:', error);
+      logger.error('Error removing from conference:', error);
       return false;
     }
   }
@@ -217,14 +241,27 @@ class SupabaseDataService {
   async getActiveConferences(): Promise<CashConference[]> {
     this.ensureAuthenticated();
 
+    // Check cache first (conferences change frequently, short TTL)
+    const cacheKey = `active_conferences_${this.userId}`;
+    const cached = queryCache.get<CashConference[]>(cacheKey);
+    if (cached) {
+      logger.debug('Cache hit for getActiveConferences', { cacheKey });
+      return cached;
+    }
+
     try {
       const { data, error } = await supabaseApi.getActiveConferences(this.userId!);
 
       if (error) throw error;
 
-      return data || [];
+      const result = data || [];
+
+      // Cache for 30 seconds (conferences change frequently)
+      queryCache.set(cacheKey, result, 30 * 1000);
+
+      return result;
     } catch (error) {
-      console.error('Error getting active conferences:', error);
+      logger.error('Error getting active conferences:', error);
       return [];
     }
   }
@@ -259,7 +296,7 @@ class SupabaseDataService {
 
       return data;
     } catch (error) {
-      console.error('Error adding manual entry:', error);
+      logger.error('Error adding manual entry:', error);
       throw error;
     }
   }
@@ -285,7 +322,7 @@ class SupabaseDataService {
 
       return data || [];
     } catch (error) {
-      console.error('Error getting manual entries:', error);
+      logger.error('Error getting manual entries:', error);
       return [];
     }
   }
@@ -304,7 +341,7 @@ class SupabaseDataService {
 
       return true;
     } catch (error) {
-      console.error('Error deleting manual entry:', error);
+      logger.error('Error deleting manual entry:', error);
       return false;
     }
   }
@@ -324,7 +361,7 @@ class SupabaseDataService {
 
       return data;
     } catch (error) {
-      console.error('Error registering not found:', error);
+      logger.error('Error registering not found:', error);
       return null;
     }
   }
@@ -339,7 +376,7 @@ class SupabaseDataService {
 
       return data || [];
     } catch (error) {
-      console.error('Error getting not found history:', error);
+      logger.error('Error getting not found history:', error);
       return [];
     }
   }
@@ -355,7 +392,7 @@ class SupabaseDataService {
 
       return data;
     } catch (error) {
-      console.error('Error getting user statistics:', error);
+      logger.error('Error getting user statistics:', error);
       return null;
     }
   }
@@ -371,7 +408,7 @@ class SupabaseDataService {
 
       return true;
     } catch (error) {
-      console.error('Error restarting work day:', error);
+      logger.error('Error restarting work day:', error);
       return false;
     }
   }
@@ -451,7 +488,7 @@ class SupabaseDataService {
 
       return data || [];
     } catch (error) {
-      console.error('Error exporting conferences:', error);
+      logger.error('Error exporting conferences:', error);
       return [];
     }
   }

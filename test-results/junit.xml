@@ -1,92 +1,43 @@
-<testsuites id="" name="" tests="5" failures="1" skipped="0" errors="0" time="66.14508500000001">
-<testsuite name="test-final-verification.spec.ts" timestamp="2025-09-22T11:09:32.865Z" hostname="chromium" tests="1" failures="0" skipped="0" time="6.576" errors="0">
-<testcase name="Verificação Final - Lançamentos ocupa toda largura sem faixa vazia" classname="test-final-verification.spec.ts" time="6.576">
-<system-out>
-<![CDATA[=== FINAL VERIFICATION ===
-Viewport width: [33m1440[39m
-Sidebar width: [33m288[39m
-Main width: [33m1152[39m
-Table width: [33m1135[39m
-Total used width: [33m1440[39m
-Unused space (faixa vazia): [33m0[39m
-Table/Main ratio: 98.5%
-=== REQUIREMENTS CHECK ===
-✅ No unused space to the right: [33mtrue[39m
-✅ Table uses full main area: [33mtrue[39m
-✅ Main uses full available space: [33mtrue[39m
-✅ Final verification completed
-]]>
-</system-out>
-</testcase>
-</testsuite>
-<testsuite name="test-final-verification.spec.ts" timestamp="2025-09-22T11:09:32.865Z" hostname="firefox" tests="1" failures="1" skipped="0" time="60.049" errors="0">
-<testcase name="Verificação Final - Lançamentos ocupa toda largura sem faixa vazia" classname="test-final-verification.spec.ts" time="60.049">
-<failure message="test-final-verification.spec.ts:3:1 Verificação Final - Lançamentos ocupa toda largura sem faixa vazia" type="FAILURE">
-<![CDATA[  [firefox] › test-final-verification.spec.ts:3:1 › Verificação Final - Lançamentos ocupa toda largura sem faixa vazia 
+<testsuites id="" name="" tests="1" failures="1" skipped="0" errors="0" time="25.269094000000003">
+<testsuite name="test-saida-direto.spec.ts" timestamp="2025-09-23T09:27:10.320Z" hostname="chromium" tests="1" failures="1" skipped="0" time="23.66" errors="0">
+<testcase name="Teste direto do botão Saída" classname="test-saida-direto.spec.ts" time="23.66">
+<failure message="test-saida-direto.spec.ts:3:1 Teste direto do botão Saída" type="FAILURE">
+<![CDATA[  [chromium] › test-saida-direto.spec.ts:3:1 › Teste direto do botão Saída ─────────────────────────
 
-    Test timeout of 60000ms exceeded while setting up "page".
+    TimeoutError: locator.click: Timeout 15000ms exceeded.
+    Call log:
+      - waiting for locator('button').filter({ hasText: /salvar/i })
 
-    Error: browserContext.newPage: Test timeout of 60000ms exceeded.
+
+      61 |   });
+      62 |
+    > 63 |   await salvarButton.click();
+         |                      ^
+      64 |   console.log('✅ Lançamento salvo');
+      65 |
+      66 |   // Aguardar confirmação
+        at C:\Users\Adrielsb\Desktop\CaixaManipularium\projetocaixa-backup\projetocaixa-1\e2e\test-saida-direto.spec.ts:63:22
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ..\test-results\test-saida-direto-Teste-direto-do-botão-Saída-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ..\test-results\test-saida-direto-Teste-direto-do-botão-Saída-chromium\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ..\test-results\test-saida-direto-Teste-direto-do-botão-Saída-chromium\error-context.md
 ]]>
 </failure>
-</testcase>
-</testsuite>
-<testsuite name="test-final-verification.spec.ts" timestamp="2025-09-22T11:09:32.865Z" hostname="webkit" tests="1" failures="0" skipped="0" time="8.134" errors="0">
-<testcase name="Verificação Final - Lançamentos ocupa toda largura sem faixa vazia" classname="test-final-verification.spec.ts" time="8.134">
 <system-out>
-<![CDATA[=== FINAL VERIFICATION ===
-Viewport width: [33m1440[39m
-Sidebar width: [33m288[39m
-Main width: [33m1152[39m
-Table width: [33m1150[39m
-Total used width: [33m1440[39m
-Unused space (faixa vazia): [33m0[39m
-Table/Main ratio: 99.8%
-=== REQUIREMENTS CHECK ===
-✅ No unused space to the right: [33mtrue[39m
-✅ Table uses full main area: [33mtrue[39m
-✅ Main uses full available space: [33mtrue[39m
-✅ Final verification completed
-]]>
-</system-out>
-</testcase>
-</testsuite>
-<testsuite name="test-final-verification.spec.ts" timestamp="2025-09-22T11:09:32.865Z" hostname="Mobile Chrome" tests="1" failures="0" skipped="0" time="7.64" errors="0">
-<testcase name="Verificação Final - Lançamentos ocupa toda largura sem faixa vazia" classname="test-final-verification.spec.ts" time="7.64">
-<system-out>
-<![CDATA[=== FINAL VERIFICATION ===
-Viewport width: [33m1440[39m
-Sidebar width: [33m288[39m
-Main width: [33m1152[39m
-Table width: [33m1150[39m
-Total used width: [33m1440[39m
-Unused space (faixa vazia): [33m0[39m
-Table/Main ratio: 99.8%
-=== REQUIREMENTS CHECK ===
-✅ No unused space to the right: [33mtrue[39m
-✅ Table uses full main area: [33mtrue[39m
-✅ Main uses full available space: [33mtrue[39m
-✅ Final verification completed
-]]>
-</system-out>
-</testcase>
-</testsuite>
-<testsuite name="test-final-verification.spec.ts" timestamp="2025-09-22T11:09:32.865Z" hostname="Mobile Safari" tests="1" failures="0" skipped="0" time="8.654" errors="0">
-<testcase name="Verificação Final - Lançamentos ocupa toda largura sem faixa vazia" classname="test-final-verification.spec.ts" time="8.654">
-<system-out>
-<![CDATA[=== FINAL VERIFICATION ===
-Viewport width: [33m1440[39m
-Sidebar width: [33m288[39m
-Main width: [33m1152[39m
-Table width: [33m1150[39m
-Total used width: [33m1440[39m
-Unused space (faixa vazia): [33m0[39m
-Table/Main ratio: 99.8%
-=== REQUIREMENTS CHECK ===
-✅ No unused space to the right: [33mtrue[39m
-✅ Table uses full main area: [33mtrue[39m
-✅ Main uses full available space: [33mtrue[39m
-✅ Final verification completed
+<![CDATA[✅ Botão Saída clicado!
+✅ Valor preenchido: 350.00
+
+[[ATTACHMENT|test-saida-direto-Teste-direto-do-botão-Saída-chromium\test-failed-1.png]]
+
+[[ATTACHMENT|test-saida-direto-Teste-direto-do-botão-Saída-chromium\video.webm]]
+
+[[ATTACHMENT|test-saida-direto-Teste-direto-do-botão-Saída-chromium\error-context.md]]
 ]]>
 </system-out>
 </testcase>

@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
+import { dbLogger as logger } from '../utils/logger';
 
 export interface Launch {
   id?: string;
@@ -27,13 +28,30 @@ export interface LaunchesServiceResponse<T = any> {
 
 class LaunchesService {
   private readonly TABLE_NAME = 'launches';
+  private userCache: { user: any; timestamp: number } | null = null;
+  private readonly CACHE_DURATION = 30000; // 30 segundos
+
+  /**
+   * Get cached user or fetch from Supabase
+   */
+  private async getCachedUser() {
+    const now = Date.now();
+
+    if (this.userCache && (now - this.userCache.timestamp) < this.CACHE_DURATION) {
+      return this.userCache.user;
+    }
+
+    const { data: { user } } = await supabase.auth.getUser();
+    this.userCache = { user, timestamp: now };
+    return user;
+  }
 
   /**
    * Create a new launch
    */
   async createLaunch(launch: Omit<Launch, 'id' | 'user_id' | 'created_at' | 'updated_at'>): Promise<LaunchesServiceResponse<Launch>> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = await this.getCachedUser();
 
       if (!user) {
         return {
@@ -55,7 +73,7 @@ class LaunchesService {
         .single();
 
       if (error) {
-        console.error('Error creating launch:', error);
+        logger.error('Error creating launch:', error);
         toast.error('Erro ao salvar lançamento');
         return {
           data: null,
@@ -72,7 +90,7 @@ class LaunchesService {
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-      console.error('Error in createLaunch:', error);
+      logger.error('Error in createLaunch:', error);
       toast.error('Erro ao salvar lançamento');
       return {
         data: null,
@@ -87,7 +105,7 @@ class LaunchesService {
    */
   async getLaunches(dateFilter?: string): Promise<LaunchesServiceResponse<Launch[]>> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = await this.getCachedUser();
 
       if (!user) {
         return {
@@ -110,7 +128,7 @@ class LaunchesService {
       const { data, error } = await query.order('created_at', { ascending: false });
 
       if (error) {
-        console.error('Error fetching launches:', error);
+        logger.error('Error fetching launches:', error);
         return {
           data: null,
           error: error.message,
@@ -125,7 +143,7 @@ class LaunchesService {
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-      console.error('Error in getLaunches:', error);
+      logger.error('Error in getLaunches:', error);
       return {
         data: null,
         error: errorMessage,
@@ -139,7 +157,7 @@ class LaunchesService {
    */
   async updateLaunch(id: string, updates: Partial<Launch>): Promise<LaunchesServiceResponse<Launch>> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = await this.getCachedUser();
 
       if (!user) {
         return {
@@ -161,7 +179,7 @@ class LaunchesService {
         .single();
 
       if (error) {
-        console.error('Error updating launch:', error);
+        logger.error('Error updating launch:', error);
         toast.error('Erro ao atualizar lançamento');
         return {
           data: null,
@@ -186,7 +204,7 @@ class LaunchesService {
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-      console.error('Error in updateLaunch:', error);
+      logger.error('Error in updateLaunch:', error);
       toast.error('Erro ao atualizar lançamento');
       return {
         data: null,
@@ -201,7 +219,7 @@ class LaunchesService {
    */
   async deleteLaunch(id: string): Promise<LaunchesServiceResponse<boolean>> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = await this.getCachedUser();
 
       if (!user) {
         return {
@@ -218,7 +236,7 @@ class LaunchesService {
         .eq('user_id', user.id);
 
       if (error) {
-        console.error('Error deleting launch:', error);
+        logger.error('Error deleting launch:', error);
         toast.error('Erro ao excluir lançamento');
         return {
           data: null,
@@ -235,7 +253,7 @@ class LaunchesService {
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-      console.error('Error in deleteLaunch:', error);
+      logger.error('Error in deleteLaunch:', error);
       toast.error('Erro ao excluir lançamento');
       return {
         data: null,
@@ -259,7 +277,7 @@ class LaunchesService {
     payment_types: { [key: string]: number };
   }>> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = await this.getCachedUser();
 
       if (!user) {
         return {
@@ -276,7 +294,7 @@ class LaunchesService {
         .eq('launch_date', date);
 
       if (error) {
-        console.error('Error fetching launches summary:', error);
+        logger.error('Error fetching launches summary:', error);
         return {
           data: null,
           error: error.message,
@@ -307,7 +325,7 @@ class LaunchesService {
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-      console.error('Error in getLaunchesSummary:', error);
+      logger.error('Error in getLaunchesSummary:', error);
       return {
         data: null,
         error: errorMessage,
@@ -321,7 +339,7 @@ class LaunchesService {
    */
   async deleteAllLaunches(): Promise<LaunchesServiceResponse<boolean>> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = await this.getCachedUser();
 
       if (!user) {
         return {
@@ -338,7 +356,7 @@ class LaunchesService {
         .eq('user_id', user.id);
 
       if (countError) {
-        console.error('Error counting launches:', countError);
+        logger.error('Error counting launches:', countError);
         return {
           data: null,
           error: countError.message,
@@ -364,7 +382,7 @@ class LaunchesService {
         .eq('user_id', user.id);
 
       if (error) {
-        console.error('Error deleting all launches:', error);
+        logger.error('Error deleting all launches:', error);
         toast.error('Erro ao excluir todos os lançamentos');
         return {
           data: null,
@@ -381,7 +399,7 @@ class LaunchesService {
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-      console.error('Error in deleteAllLaunches:', error);
+      logger.error('Error in deleteAllLaunches:', error);
       toast.error('Erro ao excluir todos os lançamentos');
       return {
         data: null,
@@ -396,7 +414,7 @@ class LaunchesService {
    */
   async deleteAllLaunchesByDate(date: string): Promise<LaunchesServiceResponse<boolean>> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = await this.getCachedUser();
 
       if (!user) {
         return {
@@ -414,7 +432,7 @@ class LaunchesService {
         .eq('launch_date', date);
 
       if (countError) {
-        console.error('Error counting launches by date:', countError);
+        logger.error('Error counting launches by date:', countError);
         return {
           data: null,
           error: countError.message,
@@ -441,7 +459,7 @@ class LaunchesService {
         .eq('launch_date', date);
 
       if (error) {
-        console.error('Error deleting launches by date:', error);
+        logger.error('Error deleting launches by date:', error);
         toast.error(`Erro ao excluir lançamentos da data ${date}`);
         return {
           data: null,
@@ -458,7 +476,7 @@ class LaunchesService {
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-      console.error('Error in deleteAllLaunchesByDate:', error);
+      logger.error('Error in deleteAllLaunchesByDate:', error);
       toast.error(`Erro ao excluir lançamentos da data ${date}`);
       return {
         data: null,
@@ -473,7 +491,7 @@ class LaunchesService {
    */
   async syncLocalLaunches(localLaunches: Launch[]): Promise<LaunchesServiceResponse<Launch[]>> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = await this.getCachedUser();
 
       if (!user) {
         return {
@@ -505,7 +523,7 @@ class LaunchesService {
         .select();
 
       if (error) {
-        console.error('Error syncing launches:', error);
+        logger.error('Error syncing launches:', error);
         toast.error('Erro ao sincronizar lançamentos');
         return {
           data: null,
@@ -522,7 +540,7 @@ class LaunchesService {
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-      console.error('Error in syncLocalLaunches:', error);
+      logger.error('Error in syncLocalLaunches:', error);
       toast.error('Erro ao sincronizar lançamentos');
       return {
         data: null,

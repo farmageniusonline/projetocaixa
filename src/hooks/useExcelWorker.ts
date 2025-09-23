@@ -2,6 +2,7 @@ import { useRef, useCallback } from 'react';
 import * as Comlink from 'comlink';
 import type { WorkerAPI, ProcessedExcelData, BankEntryForProcessing } from '../workers/excelProcessor.worker';
 import { syncExcelProcessor } from '../utils/syncExcelProcessor';
+import { logger } from '../utils/logger';
 
 export interface ProcessFileOptions {
   signal?: AbortSignal;
@@ -14,7 +15,7 @@ export function useExcelWorker() {
 
   const initWorker = useCallback(async () => {
     if (!workerRef.current) {
-      console.log('🔧 Hook: Inicializando Web Worker...');
+      logger.debug('🔧 Hook: Inicializando Web Worker...');
       try {
         // Create worker from the TypeScript file (Vite will handle compilation)
         const worker = new Worker(
@@ -23,18 +24,18 @@ export function useExcelWorker() {
         );
 
         worker.onerror = (error) => {
-          console.error('❌ Hook: Erro no worker:', error);
+          logger.error('❌ Hook: Erro no worker:', error);
         };
 
         worker.onmessageerror = (error) => {
-          console.error('❌ Hook: Erro de mensagem no worker:', error);
+          logger.error('❌ Hook: Erro de mensagem no worker:', error);
         };
 
         workerRef.current = worker;
         workerApiRef.current = Comlink.wrap<WorkerAPI>(worker);
-        console.log('✅ Hook: Worker inicializado com sucesso');
+        logger.debug('✅ Hook: Worker inicializado com sucesso');
       } catch (error) {
-        console.error('❌ Hook: Falha ao inicializar worker:', error);
+        logger.error('❌ Hook: Falha ao inicializar worker:', error);
         throw error;
       }
     }
@@ -49,12 +50,12 @@ export function useExcelWorker() {
   ): Promise<ProcessedExcelData> => {
     const { signal, timeout = 120000 } = options;
 
-    console.log('🚀 Iniciando processamento:', { fileName: file.name, size: file.size });
+    logger.debug('🚀 Iniciando processamento:', { fileName: file.name, size: file.size });
 
     // Use synchronous processing for small files (< 100KB) or as fallback
     const useSync = file.size < 100000; // 100KB threshold
     if (useSync) {
-      console.log('📁 Arquivo pequeno detectado, usando processamento síncrono');
+      logger.debug('📁 Arquivo pequeno detectado, usando processamento síncrono');
       const fileBuffer = await file.arrayBuffer();
       return await syncExcelProcessor.processExcelFile(fileBuffer, operationDate, onProgress);
     }
@@ -68,19 +69,19 @@ export function useExcelWorker() {
     let worker: Comlink.Remote<WorkerAPI>;
 
     try {
-      console.log('🔧 Hook: Inicializando worker...');
+      logger.debug('🔧 Hook: Inicializando worker...');
       worker = await initWorker();
-      console.log('✅ Hook: Worker pronto para uso');
+      logger.debug('✅ Hook: Worker pronto para uso');
 
       // Convert file to ArrayBuffer
-      console.log('📄 Hook: Convertendo arquivo para ArrayBuffer...', {
+      logger.debug('📄 Hook: Convertendo arquivo para ArrayBuffer...', {
         nome: file.name,
         extensao: file.name.toLowerCase().substring(file.name.lastIndexOf('.')),
         tipo: file.type,
         tamanho: file.size
       });
       const fileBuffer = await file.arrayBuffer();
-      console.log('📄 Hook: ArrayBuffer criado com tamanho:', fileBuffer.byteLength);
+      logger.debug('📄 Hook: ArrayBuffer criado com tamanho:', fileBuffer.byteLength);
 
       // Check abort signal after file reading
       if (signal?.aborted) {
@@ -107,7 +108,7 @@ export function useExcelWorker() {
       });
 
       // Process the file in worker with race conditions
-      console.log('⚙️ Processando arquivo no Web Worker...');
+      logger.debug('⚙️ Processando arquivo no Web Worker...');
       onProgress?.(30);
 
       // Simulate progress while processing
@@ -119,29 +120,29 @@ export function useExcelWorker() {
       }, 500);
 
       try {
-        console.log('⚙️ Hook: Chamando worker.processExcelFile...');
+        logger.debug('⚙️ Hook: Chamando worker.processExcelFile...');
         const processingPromise = worker.processExcelFile(fileBuffer, operationDate);
-        console.log('⚙️ Hook: Promise de processamento criada');
+        logger.debug('⚙️ Hook: Promise de processamento criada');
 
         const promises = [processingPromise];
         if (timeout > 0) {
-          console.log(`⏰ Hook: Adicionando timeout de ${timeout}ms`);
+          logger.debug(`⏰ Hook: Adicionando timeout de ${timeout}ms`);
           promises.push(timeoutPromise);
         }
         if (signal) {
-          console.log('🛑 Hook: Adicionando abort signal');
+          logger.debug('🛑 Hook: Adicionando abort signal');
           promises.push(abortPromise);
         }
 
-        console.log(`🏁 Hook: Iniciando Promise.race com ${promises.length} promises`);
+        logger.debug(`🏁 Hook: Iniciando Promise.race com ${promises.length} promises`);
         // Process without callback (worker handles progress internally)
         const result = await Promise.race(promises) as ProcessedExcelData;
-        console.log('✅ Hook: Processamento concluído com sucesso');
+        logger.debug('✅ Hook: Processamento concluído com sucesso');
 
         clearInterval(progressInterval);
         onProgress?.(90);
 
-        console.log('✅ Processamento concluído:', {
+        logger.debug('✅ Processamento concluído:', {
           totalRows: result.parseResult.stats.totalRows,
           validRows: result.parseResult.stats.validRows,
           errors: result.parseResult.errors.length
@@ -154,11 +155,11 @@ export function useExcelWorker() {
         throw error;
       }
     } catch (error) {
-      console.error('❌ Erro no processamento com Worker:', error);
+      logger.error('❌ Erro no processamento com Worker:', error);
 
       // Terminate worker on error to prevent hanging
       if (workerRef.current) {
-        console.log('🔄 Terminando worker devido ao erro...');
+        logger.debug('🔄 Terminando worker devido ao erro...');
         workerRef.current.terminate();
         workerRef.current = null;
         workerApiRef.current = null;
@@ -166,13 +167,13 @@ export function useExcelWorker() {
 
       // Try fallback to synchronous processing
       if (error instanceof DOMException && error.name === 'TimeoutError') {
-        console.log('⚠️ Worker timeout, tentando processamento síncrono como fallback...');
+        logger.warn('⚠️ Worker timeout, tentando processamento síncrono como fallback...');
         try {
           const fileBuffer = await file.arrayBuffer();
-          console.log('🔄 Fallback: Usando processamento síncrono...');
+          logger.debug('🔄 Fallback: Usando processamento síncrono...');
           return await syncExcelProcessor.processExcelFile(fileBuffer, operationDate, onProgress);
         } catch (fallbackError) {
-          console.error('❌ Fallback também falhou:', fallbackError);
+          logger.error('❌ Fallback também falhou:', fallbackError);
           throw new Error(`Erro no processamento (Worker e Fallback): ${fallbackError instanceof Error ? fallbackError.message : 'Erro desconhecido'}`);
         }
       }
@@ -198,14 +199,14 @@ export function useExcelWorker() {
   }, [initWorker]);
 
   const terminateWorker = useCallback(() => {
-    console.log('🛑 Terminando Web Worker...');
+    logger.debug('🛑 Terminando Web Worker...');
 
     if (workerApiRef.current) {
       try {
         // Release Comlink proxy
         workerApiRef.current[Comlink.releaseProxy]();
       } catch (error) {
-        console.warn('Erro ao liberar proxy do worker:', error);
+        logger.warn('Erro ao liberar proxy do worker:', error);
       }
       workerApiRef.current = null;
     }
@@ -215,7 +216,7 @@ export function useExcelWorker() {
         // Terminate the actual worker
         workerRef.current.terminate();
       } catch (error) {
-        console.warn('Erro ao terminar worker:', error);
+        logger.warn('Erro ao terminar worker:', error);
       }
       workerRef.current = null;
     }

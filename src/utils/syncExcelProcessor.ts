@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
 import { formatToDDMMYYYY } from './dateFormatter';
 import { generateOriginHashSync } from './idGenerator';
+import { logger } from './logger';
 import type { ProcessedExcelData, ParsedRow, ParseResult, BankEntryForProcessing } from '../workers/excelProcessor.worker';
 
 /**
@@ -56,7 +57,7 @@ export class SyncExcelProcessor {
 
       return '';
     } catch (error) {
-      console.warn('Failed to parse date:', dateValue, error);
+      logger.warn('Failed to parse date:', dateValue, error);
       return '';
     }
   }
@@ -170,7 +171,7 @@ export class SyncExcelProcessor {
     operationDate: string,
     onProgress?: (progress: number) => void
   ): Promise<ProcessedExcelData> {
-    console.log('🔄 Sync Processor: Iniciando processamento síncrono...', {
+    logger.debug('🔄 Sync Processor: Iniciando processamento síncrono...', {
       fileSize: fileBuffer.byteLength,
       operationDate
     });
@@ -179,7 +180,7 @@ export class SyncExcelProcessor {
       onProgress?.(10);
 
       // Read Excel file with minimal options
-      console.log('🔄 Sync Processor: Lendo workbook...');
+      logger.debug('🔄 Sync Processor: Lendo workbook...');
       const workbook = XLSX.read(fileBuffer, {
         type: 'array',
         cellDates: true,
@@ -202,7 +203,7 @@ export class SyncExcelProcessor {
       onProgress?.(50);
 
       // Convert to JSON
-      console.log('🔄 Sync Processor: Convertendo para JSON...');
+      logger.debug('🔄 Sync Processor: Convertendo para JSON...');
       const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
       if (rawData.length < 2) {
@@ -238,7 +239,7 @@ export class SyncExcelProcessor {
       let validRows = 0;
 
       // Process each row
-      console.log('🔄 Sync Processor: Processando linhas...');
+      logger.debug('🔄 Sync Processor: Processando linhas...');
       for (let i = headerRowIndex + 1; i < rawData.length; i++) {
         const row = rawData[i] as any[];
         if (!row || row.length === 0) continue;
@@ -337,7 +338,7 @@ export class SyncExcelProcessor {
 
       onProgress?.(100);
 
-      console.log('✅ Sync Processor: Processamento síncrono concluído');
+      logger.debug('✅ Sync Processor: Processamento síncrono concluído');
       return {
         parseResult,
         valueCentsMap,
@@ -345,7 +346,7 @@ export class SyncExcelProcessor {
       };
 
     } catch (error) {
-      console.error('❌ Sync Processor: Erro no processamento síncrono:', error);
+      logger.error('❌ Sync Processor: Erro no processamento síncrono:', error);
       throw error;
     }
   }

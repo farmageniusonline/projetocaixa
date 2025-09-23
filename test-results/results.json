@@ -11,7 +11,7 @@
     "grepInvert": null,
     "maxFailures": 0,
     "metadata": {
-      "actualWorkers": 4
+      "actualWorkers": 1
     },
     "preserveOutput": "always",
     "reporter": [
@@ -50,7 +50,7 @@
         "repeatEach": 1,
         "retries": 0,
         "metadata": {
-          "actualWorkers": 4
+          "actualWorkers": 1
         },
         "id": "chromium",
         "name": "chromium",
@@ -66,7 +66,7 @@
         "repeatEach": 1,
         "retries": 0,
         "metadata": {
-          "actualWorkers": 4
+          "actualWorkers": 1
         },
         "id": "firefox",
         "name": "firefox",
@@ -82,7 +82,7 @@
         "repeatEach": 1,
         "retries": 0,
         "metadata": {
-          "actualWorkers": 4
+          "actualWorkers": 1
         },
         "id": "webkit",
         "name": "webkit",
@@ -98,7 +98,7 @@
         "repeatEach": 1,
         "retries": 0,
         "metadata": {
-          "actualWorkers": 4
+          "actualWorkers": 1
         },
         "id": "Mobile Chrome",
         "name": "Mobile Chrome",
@@ -114,7 +114,7 @@
         "repeatEach": 1,
         "retries": 0,
         "metadata": {
-          "actualWorkers": 4
+          "actualWorkers": 1
         },
         "id": "Mobile Safari",
         "name": "Mobile Safari",
@@ -142,14 +142,14 @@
   },
   "suites": [
     {
-      "title": "test-final-verification.spec.ts",
-      "file": "test-final-verification.spec.ts",
+      "title": "test-saida-direto.spec.ts",
+      "file": "test-saida-direto.spec.ts",
       "column": 0,
       "line": 0,
       "specs": [
         {
-          "title": "Verificação Final - Lançamentos ocupa toda largura sem faixa vazia",
-          "ok": true,
+          "title": "Teste direto do botão Saída",
+          "ok": false,
           "tags": [],
           "tests": [
             {
@@ -162,329 +162,69 @@
                 {
                   "workerIndex": 0,
                   "parallelIndex": 0,
-                  "status": "passed",
-                  "duration": 6576,
-                  "errors": [],
-                  "stdout": [
-                    {
-                      "text": "=== FINAL VERIFICATION ===\n"
-                    },
-                    {
-                      "text": "Viewport width: \u001b[33m1440\u001b[39m\n"
-                    },
-                    {
-                      "text": "Sidebar width: \u001b[33m288\u001b[39m\n"
-                    },
-                    {
-                      "text": "Main width: \u001b[33m1152\u001b[39m\n"
-                    },
-                    {
-                      "text": "Table width: \u001b[33m1135\u001b[39m\n"
-                    },
-                    {
-                      "text": "Total used width: \u001b[33m1440\u001b[39m\n"
-                    },
-                    {
-                      "text": "Unused space (faixa vazia): \u001b[33m0\u001b[39m\n"
-                    },
-                    {
-                      "text": "Table/Main ratio: 98.5%\n"
-                    },
-                    {
-                      "text": "=== REQUIREMENTS CHECK ===\n"
-                    },
-                    {
-                      "text": "✅ No unused space to the right: \u001b[33mtrue\u001b[39m\n"
-                    },
-                    {
-                      "text": "✅ Table uses full main area: \u001b[33mtrue\u001b[39m\n"
-                    },
-                    {
-                      "text": "✅ Main uses full available space: \u001b[33mtrue\u001b[39m\n"
-                    },
-                    {
-                      "text": "✅ Final verification completed\n"
-                    }
-                  ],
-                  "stderr": [],
-                  "retry": 0,
-                  "startTime": "2025-09-22T11:09:33.876Z",
-                  "annotations": [],
-                  "attachments": []
-                }
-              ],
-              "status": "expected"
-            }
-          ],
-          "id": "95dcd5e9be8a8d0a6c9b-bfd05523a185fe6c169e",
-          "file": "test-final-verification.spec.ts",
-          "line": 3,
-          "column": 1
-        },
-        {
-          "title": "Verificação Final - Lançamentos ocupa toda largura sem faixa vazia",
-          "ok": false,
-          "tags": [],
-          "tests": [
-            {
-              "timeout": 60000,
-              "annotations": [],
-              "expectedStatus": "passed",
-              "projectId": "firefox",
-              "projectName": "firefox",
-              "results": [
-                {
-                  "workerIndex": 1,
-                  "parallelIndex": 1,
-                  "status": "timedOut",
-                  "duration": 60049,
+                  "status": "failed",
+                  "duration": 23660,
                   "error": {
-                    "message": "\u001b[31mTest timeout of 60000ms exceeded while setting up \"page\".\u001b[39m",
-                    "stack": "\u001b[31mTest timeout of 60000ms exceeded while setting up \"page\".\u001b[39m"
+                    "message": "TimeoutError: locator.click: Timeout 15000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('button').filter({ hasText: /salvar/i })\u001b[22m\n",
+                    "stack": "TimeoutError: locator.click: Timeout 15000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('button').filter({ hasText: /salvar/i })\u001b[22m\n\n    at C:\\Users\\Adrielsb\\Desktop\\CaixaManipularium\\projetocaixa-backup\\projetocaixa-1\\e2e\\test-saida-direto.spec.ts:63:22",
+                    "location": {
+                      "file": "C:\\Users\\Adrielsb\\Desktop\\CaixaManipularium\\projetocaixa-backup\\projetocaixa-1\\e2e\\test-saida-direto.spec.ts",
+                      "column": 22,
+                      "line": 63
+                    },
+                    "snippet": "\u001b[0m \u001b[90m 61 |\u001b[39m   })\u001b[33m;\u001b[39m\n \u001b[90m 62 |\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 63 |\u001b[39m   \u001b[36mawait\u001b[39m salvarButton\u001b[33m.\u001b[39mclick()\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                      \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 64 |\u001b[39m   console\u001b[33m.\u001b[39mlog(\u001b[32m'✅ Lançamento salvo'\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m 65 |\u001b[39m\n \u001b[90m 66 |\u001b[39m   \u001b[90m// Aguardar confirmação\u001b[39m\u001b[0m"
                   },
                   "errors": [
                     {
-                      "message": "\u001b[31mTest timeout of 60000ms exceeded while setting up \"page\".\u001b[39m"
-                    },
-                    {
-                      "message": "Error: browserContext.newPage: Test timeout of 60000ms exceeded."
+                      "location": {
+                        "file": "C:\\Users\\Adrielsb\\Desktop\\CaixaManipularium\\projetocaixa-backup\\projetocaixa-1\\e2e\\test-saida-direto.spec.ts",
+                        "column": 22,
+                        "line": 63
+                      },
+                      "message": "TimeoutError: locator.click: Timeout 15000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('button').filter({ hasText: /salvar/i })\u001b[22m\n\n\n  61 |   });\n  62 |\n> 63 |   await salvarButton.click();\n     |                      ^\n  64 |   console.log('✅ Lançamento salvo');\n  65 |\n  66 |   // Aguardar confirmação\n    at C:\\Users\\Adrielsb\\Desktop\\CaixaManipularium\\projetocaixa-backup\\projetocaixa-1\\e2e\\test-saida-direto.spec.ts:63:22"
                     }
                   ],
-                  "stdout": [],
+                  "stdout": [
+                    {
+                      "text": "✅ Botão Saída clicado!\n"
+                    },
+                    {
+                      "text": "✅ Valor preenchido: 350.00\n"
+                    }
+                  ],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2025-09-22T11:09:33.910Z",
+                  "startTime": "2025-09-23T09:27:11.303Z",
                   "annotations": [],
-                  "attachments": []
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "C:\\Users\\Adrielsb\\Desktop\\CaixaManipularium\\projetocaixa-backup\\projetocaixa-1\\test-results\\test-saida-direto-Teste-direto-do-botão-Saída-chromium\\test-failed-1.png"
+                    },
+                    {
+                      "name": "video",
+                      "contentType": "video/webm",
+                      "path": "C:\\Users\\Adrielsb\\Desktop\\CaixaManipularium\\projetocaixa-backup\\projetocaixa-1\\test-results\\test-saida-direto-Teste-direto-do-botão-Saída-chromium\\video.webm"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "C:\\Users\\Adrielsb\\Desktop\\CaixaManipularium\\projetocaixa-backup\\projetocaixa-1\\test-results\\test-saida-direto-Teste-direto-do-botão-Saída-chromium\\error-context.md"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "C:\\Users\\Adrielsb\\Desktop\\CaixaManipularium\\projetocaixa-backup\\projetocaixa-1\\e2e\\test-saida-direto.spec.ts",
+                    "column": 22,
+                    "line": 63
+                  }
                 }
               ],
               "status": "unexpected"
             }
           ],
-          "id": "95dcd5e9be8a8d0a6c9b-9457cd0a2b4efc1fb587",
-          "file": "test-final-verification.spec.ts",
-          "line": 3,
-          "column": 1
-        },
-        {
-          "title": "Verificação Final - Lançamentos ocupa toda largura sem faixa vazia",
-          "ok": true,
-          "tags": [],
-          "tests": [
-            {
-              "timeout": 60000,
-              "annotations": [],
-              "expectedStatus": "passed",
-              "projectId": "webkit",
-              "projectName": "webkit",
-              "results": [
-                {
-                  "workerIndex": 2,
-                  "parallelIndex": 2,
-                  "status": "passed",
-                  "duration": 8134,
-                  "errors": [],
-                  "stdout": [
-                    {
-                      "text": "=== FINAL VERIFICATION ===\n"
-                    },
-                    {
-                      "text": "Viewport width: \u001b[33m1440\u001b[39m\n"
-                    },
-                    {
-                      "text": "Sidebar width: \u001b[33m288\u001b[39m\n"
-                    },
-                    {
-                      "text": "Main width: \u001b[33m1152\u001b[39m\n"
-                    },
-                    {
-                      "text": "Table width: \u001b[33m1150\u001b[39m\n"
-                    },
-                    {
-                      "text": "Total used width: \u001b[33m1440\u001b[39m\n"
-                    },
-                    {
-                      "text": "Unused space (faixa vazia): \u001b[33m0\u001b[39m\n"
-                    },
-                    {
-                      "text": "Table/Main ratio: 99.8%\n"
-                    },
-                    {
-                      "text": "=== REQUIREMENTS CHECK ===\n"
-                    },
-                    {
-                      "text": "✅ No unused space to the right: \u001b[33mtrue\u001b[39m\n"
-                    },
-                    {
-                      "text": "✅ Table uses full main area: \u001b[33mtrue\u001b[39m\n"
-                    },
-                    {
-                      "text": "✅ Main uses full available space: \u001b[33mtrue\u001b[39m\n"
-                    },
-                    {
-                      "text": "✅ Final verification completed\n"
-                    }
-                  ],
-                  "stderr": [],
-                  "retry": 0,
-                  "startTime": "2025-09-22T11:09:33.896Z",
-                  "annotations": [],
-                  "attachments": []
-                }
-              ],
-              "status": "expected"
-            }
-          ],
-          "id": "95dcd5e9be8a8d0a6c9b-3f672c42d476ecc5fdca",
-          "file": "test-final-verification.spec.ts",
-          "line": 3,
-          "column": 1
-        },
-        {
-          "title": "Verificação Final - Lançamentos ocupa toda largura sem faixa vazia",
-          "ok": true,
-          "tags": [],
-          "tests": [
-            {
-              "timeout": 60000,
-              "annotations": [],
-              "expectedStatus": "passed",
-              "projectId": "Mobile Chrome",
-              "projectName": "Mobile Chrome",
-              "results": [
-                {
-                  "workerIndex": 3,
-                  "parallelIndex": 3,
-                  "status": "passed",
-                  "duration": 7640,
-                  "errors": [],
-                  "stdout": [
-                    {
-                      "text": "=== FINAL VERIFICATION ===\n"
-                    },
-                    {
-                      "text": "Viewport width: \u001b[33m1440\u001b[39m\n"
-                    },
-                    {
-                      "text": "Sidebar width: \u001b[33m288\u001b[39m\n"
-                    },
-                    {
-                      "text": "Main width: \u001b[33m1152\u001b[39m\n"
-                    },
-                    {
-                      "text": "Table width: \u001b[33m1150\u001b[39m\n"
-                    },
-                    {
-                      "text": "Total used width: \u001b[33m1440\u001b[39m\n"
-                    },
-                    {
-                      "text": "Unused space (faixa vazia): \u001b[33m0\u001b[39m\n"
-                    },
-                    {
-                      "text": "Table/Main ratio: 99.8%\n"
-                    },
-                    {
-                      "text": "=== REQUIREMENTS CHECK ===\n"
-                    },
-                    {
-                      "text": "✅ No unused space to the right: \u001b[33mtrue\u001b[39m\n"
-                    },
-                    {
-                      "text": "✅ Table uses full main area: \u001b[33mtrue\u001b[39m\n"
-                    },
-                    {
-                      "text": "✅ Main uses full available space: \u001b[33mtrue\u001b[39m\n"
-                    },
-                    {
-                      "text": "✅ Final verification completed\n"
-                    }
-                  ],
-                  "stderr": [],
-                  "retry": 0,
-                  "startTime": "2025-09-22T11:09:33.896Z",
-                  "annotations": [],
-                  "attachments": []
-                }
-              ],
-              "status": "expected"
-            }
-          ],
-          "id": "95dcd5e9be8a8d0a6c9b-8336ad101f549b15efc5",
-          "file": "test-final-verification.spec.ts",
-          "line": 3,
-          "column": 1
-        },
-        {
-          "title": "Verificação Final - Lançamentos ocupa toda largura sem faixa vazia",
-          "ok": true,
-          "tags": [],
-          "tests": [
-            {
-              "timeout": 60000,
-              "annotations": [],
-              "expectedStatus": "passed",
-              "projectId": "Mobile Safari",
-              "projectName": "Mobile Safari",
-              "results": [
-                {
-                  "workerIndex": 4,
-                  "parallelIndex": 0,
-                  "status": "passed",
-                  "duration": 8654,
-                  "errors": [],
-                  "stdout": [
-                    {
-                      "text": "=== FINAL VERIFICATION ===\n"
-                    },
-                    {
-                      "text": "Viewport width: \u001b[33m1440\u001b[39m\n"
-                    },
-                    {
-                      "text": "Sidebar width: \u001b[33m288\u001b[39m\n"
-                    },
-                    {
-                      "text": "Main width: \u001b[33m1152\u001b[39m\n"
-                    },
-                    {
-                      "text": "Table width: \u001b[33m1150\u001b[39m\n"
-                    },
-                    {
-                      "text": "Total used width: \u001b[33m1440\u001b[39m\n"
-                    },
-                    {
-                      "text": "Unused space (faixa vazia): \u001b[33m0\u001b[39m\n"
-                    },
-                    {
-                      "text": "Table/Main ratio: 99.8%\n"
-                    },
-                    {
-                      "text": "=== REQUIREMENTS CHECK ===\n"
-                    },
-                    {
-                      "text": "✅ No unused space to the right: \u001b[33mtrue\u001b[39m\n"
-                    },
-                    {
-                      "text": "✅ Table uses full main area: \u001b[33mtrue\u001b[39m\n"
-                    },
-                    {
-                      "text": "✅ Main uses full available space: \u001b[33mtrue\u001b[39m\n"
-                    },
-                    {
-                      "text": "✅ Final verification completed\n"
-                    }
-                  ],
-                  "stderr": [],
-                  "retry": 0,
-                  "startTime": "2025-09-22T11:09:42.492Z",
-                  "annotations": [],
-                  "attachments": []
-                }
-              ],
-              "status": "expected"
-            }
-          ],
-          "id": "95dcd5e9be8a8d0a6c9b-801ac9986caee8e648bb",
-          "file": "test-final-verification.spec.ts",
+          "id": "9876347fa8fb016125ea-dbbb1a2d42cbf429760e",
+          "file": "test-saida-direto.spec.ts",
           "line": 3,
           "column": 1
         }
@@ -493,9 +233,9 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2025-09-22T11:09:32.829Z",
-    "duration": 66145.085,
-    "expected": 4,
+    "startTime": "2025-09-23T09:27:10.065Z",
+    "duration": 25269.094,
+    "expected": 0,
     "skipped": 0,
     "unexpected": 1,
     "flaky": 0

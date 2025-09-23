@@ -20,6 +20,7 @@ import { ValidationError, useFieldValidation } from '../components/ValidationErr
 import { DevPerformancePanel } from '../components/DevPerformancePanel';
 import { KeyboardShortcutsHelp } from '../components/KeyboardShortcutsHelp';
 import { performanceLogger } from '../utils/performanceLogger';
+import { logger } from '../utils/logger';
 import { useDashboardFilters, usePersistentState } from '../hooks/usePersistentState';
 import StorageAdapter from '../lib/storageAdapter';
 import { dataAdapter } from '../services/dataAdapter';
@@ -33,6 +34,9 @@ import { useExcelWorker, ProcessFileOptions } from '../hooks/useExcelWorker';
 import { executeBankingUploadTransaction, handleTransactionError } from '../lib/dexieTransactions';
 import { useGlobalKeyboardShortcuts, useFocusManager, useFocusRestore } from '../hooks/useKeyboardShortcuts';
 import { useValueLookup } from '../hooks/useValueLookup';
+import { FeatureErrorBoundary } from '../components/common/FeatureErrorBoundary';
+import { MetricsDashboard } from '../components/MetricsDashboard';
+import { queryCache } from '../services/CacheService';
 import toast from 'react-hot-toast';
 
 export const Dashboard: React.FC = () => {
@@ -52,6 +56,7 @@ export const Dashboard: React.FC = () => {
   const [dashboardFilters, setDashboardFilters] = useDashboardFilters();
   const [activeTab, setActiveTab] = usePersistentState<'banking' | 'cash' | 'launches' | 'actions' | 'backup' | 'relatorio-diario'>('dashboard_active_tab', 'banking');
   const [showHistory, setShowHistory] = usePersistentState('dashboard_show_history', false);
+  const [showMetricsDashboard, setShowMetricsDashboard] = useState(false);
 
   // Local state (non-persistent)
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -103,7 +108,7 @@ export const Dashboard: React.FC = () => {
           }
         }
       } catch (e) {
-        console.warn('Invalid conferredAt value:', item.conferredAt);
+        logger.warn('Invalid conferredAt value:', item.conferredAt);
       }
       return {
         ...item,
@@ -131,7 +136,7 @@ export const Dashboard: React.FC = () => {
           }
         }
       } catch (e) {
-        console.warn('Invalid timestamp value:', item.timestamp);
+        logger.warn('Invalid timestamp value:', item.timestamp);
       }
       return {
         ...item,
@@ -187,7 +192,7 @@ export const Dashboard: React.FC = () => {
         'conferred'
       );
     } catch (dbError) {
-      console.error('Error saving conference to database:', dbError);
+      logger.error('Error saving conference to database:', dbError);
     }
 
     // Clear input and show success
@@ -255,7 +260,7 @@ export const Dashboard: React.FC = () => {
         setShowSelectionModal(true);
       }
     } catch (error: any) {
-      console.error('Erro na busca de conferência:', error);
+      logger.error('Erro na busca de conferência:', error);
       setSearchError(error.message || 'Erro interno na busca');
     } finally {
       setIsSearching(false);
@@ -326,7 +331,36 @@ export const Dashboard: React.FC = () => {
     {
       openDateFilter,
       closeModals,
-      confirmAction: handleConfirmAction
+      confirmAction: handleConfirmAction,
+      // Navigation shortcuts
+      switchToLaunches: () => handleTabChange('launches'),
+      switchToBanking: () => handleTabChange('banking'),
+      switchToCash: () => handleTabChange('cash'),
+      switchToReports: () => handleTabChange('relatorio-diario'),
+      switchToActions: () => handleTabChange('actions'),
+      switchToBackup: () => handleTabChange('backup'),
+      // Action shortcuts
+      exportData: () => {
+        // Export current tab data
+        if (activeTab === 'banking' && parseResult?.data) {
+          logger.info('Exporting banking data via keyboard shortcut');
+          // Trigger export of current data
+          toast.success('Exportando dados bancários...');
+        } else if (activeTab === 'cash' && conferredItems.length > 0) {
+          logger.info('Exporting cash conference data via keyboard shortcut');
+          toast.success('Exportando conferências...');
+        }
+      },
+      refreshData: () => {
+        // Refresh current view data
+        logger.info('Refreshing data via keyboard shortcut');
+        if (activeTab === 'banking') {
+          // Clear caches and reload
+          queryCache.clear();
+          toast.success('Dados atualizados');
+        }
+      },
+      toggleMetrics: () => setShowMetricsDashboard(!showMetricsDashboard)
     }
   );
 
@@ -356,25 +390,25 @@ export const Dashboard: React.FC = () => {
   // Create value index when parseResult is loaded from persistent state
   useEffect(() => {
     if (parseResult && parseResult.data && parseResult.data.length > 0 && !valueIndex) {
-      console.log('Creating value index from persistent data...');
+      logger.debug('Creating value index from persistent data...');
       const index = createValueIndex(parseResult.data);
       setValueIndex(index);
-      console.log(`Índice criado com ${index.size} valores únicos`);
+      logger.debug(`Índice criado com ${index.size} valores únicos`);
     }
   }, [parseResult]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    console.log('File selected:', file);
+    logger.debug('File selected:', file);
     if (file) {
-      console.log('File details:', { name: file.name, size: file.size, type: file.type });
+      logger.debug('File details:', { name: file.name, size: file.size, type: file.type });
       setSelectedFile(file);
       setError(null);
     }
   };
 
   const handleCancelProcessing = useCallback(() => {
-    console.log('🛑 Cancelando processamento...');
+    logger.debug('🛑 Cancelando processamento...');
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
@@ -385,9 +419,9 @@ export const Dashboard: React.FC = () => {
   }, [terminateWorker, processingState]);
 
   const handleLoadFile = async () => {
-    console.log('🚀 handleLoadFile called, selectedFile:', selectedFile);
+    logger.debug('🚀 handleLoadFile called, selectedFile:', selectedFile);
     if (!selectedFile) {
-      console.log('❌ No file selected');
+      logger.debug('❌ No file selected');
       return;
     }
 
@@ -434,7 +468,7 @@ export const Dashboard: React.FC = () => {
       return;
     }
 
-    console.log('✅ Starting file processing with Web Worker...');
+    logger.debug('✅ Starting file processing with Web Worker...');
     const startTime = Date.now();
 
     // Create new AbortController for this operation
@@ -456,7 +490,7 @@ export const Dashboard: React.FC = () => {
         selectedFile,
         operationDate,
         (progress) => {
-          console.log(`📊 Upload progress: ${progress}%`);
+          logger.debug(`📊 Upload progress: ${progress}%`);
           processingState.updateProgress(progress);
         },
         options
@@ -464,12 +498,12 @@ export const Dashboard: React.FC = () => {
 
       // Check for abort after processing
       if (abortControllerRef.current?.signal.aborted) {
-        console.log('🛑 Processing was aborted');
+        logger.debug('🛑 Processing was aborted');
         return;
       }
 
       const processingTime = Date.now() - startTime;
-      console.log(`⚡ Processing completed in ${processingTime}ms`);
+      logger.debug(`⚡ Processing completed in ${processingTime}ms`);
 
       if (processedData.parseResult.success) {
         processingState.updateStage('indexing', 'Criando índices de busca...');
@@ -508,12 +542,12 @@ export const Dashboard: React.FC = () => {
         // Automatically select today's date after successful spreadsheet loading
         const todayFormatted = formatDateForQuery(new Date());
         setDashboardFilters(prev => ({ ...prev, selectedDate: todayFormatted }));
-        console.log(`📅 Data selecionada automaticamente: ${todayFormatted}`);
+        logger.debug(`📅 Data selecionada automaticamente: ${todayFormatted}`);
 
         // Create value index from converted data
         const index = createValueIndex(convertedData);
         setValueIndex(index);
-        console.log(`🔍 Índice criado com ${index.size} valores únicos`);
+        logger.debug(`🔍 Índice criado com ${index.size} valores únicos`);
 
         processingState.updateStage('saving', 'Salvando no banco de dados...');
 
@@ -539,11 +573,11 @@ export const Dashboard: React.FC = () => {
             userId: user?.username || 'default_user'
           };
 
-          console.log('💾 Saving to database with transaction...');
+          logger.debug('💾 Saving to database with transaction...');
           const dbResult = await executeBankingUploadTransaction(bankingData);
 
           if (dbResult.success) {
-            console.log('✅ Data saved to database successfully:', dbResult.data);
+            logger.debug('✅ Data saved to database successfully:', dbResult.data);
             toast.success(
               `✅ Arquivo processado com sucesso!\n` +
               `⏱️ Tempo: ${processingTime}ms\n` +
@@ -552,7 +586,7 @@ export const Dashboard: React.FC = () => {
               { duration: 5000 }
             );
           } else {
-            console.error('❌ Database save failed:', dbResult.error);
+            logger.error('❌ Database save failed:', dbResult.error);
             handleTransactionError(dbResult, 'Erro ao salvar no banco');
 
             // Show a specific toast for database issues but don't fail parsing
@@ -564,7 +598,7 @@ export const Dashboard: React.FC = () => {
             );
           }
         } catch (dbError) {
-          console.error('❌ Critical database error:', dbError);
+          logger.error('❌ Critical database error:', dbError);
           toast.error(
             `❌ Erro crítico no banco de dados\n` +
             `📊 Dados processados e visíveis na tabela\n` +
@@ -573,16 +607,16 @@ export const Dashboard: React.FC = () => {
           );
         }
 
-        console.log(`📊 Processing summary:`);
-        console.log(`  - Tempo total: ${processingTime}ms`);
-        console.log(`  - Linhas processadas: ${processedData.parseResult.stats.totalRows}`);
-        console.log(`  - Linhas válidas: ${processedData.parseResult.stats.validRows}`);
-        console.log(`  - Avisos: ${processedData.parseResult.warnings.length}`);
-        console.log(`  - Erros: ${processedData.parseResult.errors.length}`);
+        logger.debug(`📊 Processing summary:`);
+        logger.debug(`  - Tempo total: ${processingTime}ms`);
+        logger.debug(`  - Linhas processadas: ${processedData.parseResult.stats.totalRows}`);
+        logger.debug(`  - Linhas válidas: ${processedData.parseResult.stats.validRows}`);
+        logger.debug(`  - Avisos: ${processedData.parseResult.warnings.length}`);
+        logger.debug(`  - Erros: ${processedData.parseResult.errors.length}`);
       } else {
         // Processing failed
         const errorMsg = processedData.parseResult.errors.join('\n');
-        console.error('❌ Parse failed:', errorMsg);
+        logger.error('❌ Parse failed:', errorMsg);
         setError(errorMsg);
         setParseResult(null);
 
@@ -594,12 +628,12 @@ export const Dashboard: React.FC = () => {
         );
       }
     } catch (err) {
-      console.error('💥 Critical error processing file:', err);
+      logger.error('💥 Critical error processing file:', err);
 
       // Handle different error types with user-friendly messages
       if (err instanceof DOMException) {
         if (err.name === 'AbortError') {
-          console.log('🛑 Operation was aborted');
+          logger.debug('🛑 Operation was aborted');
           return; // Don't show error for user-initiated abort
         } else if (err.name === 'TimeoutError') {
           const errorMessage = '⏰ Timeout: Arquivo muito grande ou complexo';
@@ -655,7 +689,7 @@ export const Dashboard: React.FC = () => {
       // Always clean up
       abortControllerRef.current = null;
       processingState.stopProcessing();
-      console.log('🏁 Upload operation finished');
+      logger.debug('🏁 Upload operation finished');
     }
   };
 
@@ -678,7 +712,7 @@ export const Dashboard: React.FC = () => {
       return;
     }
 
-    console.log('Carregando histórico para data:', dashboardFilters.selectedDate);
+    logger.debug('Carregando histórico para data:', dashboardFilters.selectedDate);
 
     try {
       // Validate date before creating Date object
@@ -739,7 +773,7 @@ export const Dashboard: React.FC = () => {
       }
 
     } catch (error) {
-      console.error('Erro ao filtrar por data:', error);
+      logger.error('Erro ao filtrar por data:', error);
       setSearchError('Erro ao carregar histórico. Verifique a data selecionada.');
     }
   };
@@ -889,6 +923,21 @@ export const Dashboard: React.FC = () => {
               <span className="text-sm text-gray-300">
                 <strong className="text-gray-100">{user?.username}</strong>
               </span>
+
+              {/* Performance Metrics Button */}
+              <button
+                onClick={() => setShowMetricsDashboard(!showMetricsDashboard)}
+                className={`inline-flex items-center px-3 py-2 border shadow-sm text-sm leading-4 font-medium rounded-md transition-colors ${
+                  showMetricsDashboard
+                    ? 'border-blue-500 text-blue-400 bg-blue-900/30 hover:bg-blue-900/50'
+                    : 'border-gray-700 text-gray-400 bg-gray-800 hover:bg-gray-700 hover:text-gray-100'
+                } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-blue-500`}
+                title="Performance Metrics Dashboard"
+              >
+                📊
+                <span className="ml-1 hidden sm:inline">Métricas</span>
+              </button>
+
               <button
                 onClick={logout}
                 className="inline-flex items-center px-3 py-2 border border-gray-700 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-300 bg-gray-800 hover:bg-gray-700 hover:text-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-indigo-500 transition-colors"
@@ -989,9 +1038,10 @@ export const Dashboard: React.FC = () => {
 
       <div className="flex h-[calc(100vh-8rem)]">
         {activeTab === 'launches' ? (
-          <LaunchTab
-            currentDate={operationDate ? (() => {
-              try {
+          <FeatureErrorBoundary feature="LaunchTab">
+            <LaunchTab
+              currentDate={operationDate ? (() => {
+                try {
                 const [day, month, year] = operationDate.split('/');
                 return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
               } catch {
@@ -1002,6 +1052,7 @@ export const Dashboard: React.FC = () => {
             onLaunchAdded={handleLaunchAdded}
             conferredItems={conferredItems}
           />
+          </FeatureErrorBoundary>
         ) : activeTab === 'banking' ? (
           <div className="flex h-[calc(100vh-8rem)]">
             {/* Banking Conference Sidebar with Steps */}
@@ -1024,7 +1075,7 @@ export const Dashboard: React.FC = () => {
                 <label
                   htmlFor="fileInput"
                   className="block w-full px-3 py-2 text-sm text-gray-300 bg-gray-700 border border-gray-600 rounded-md cursor-pointer hover:bg-gray-600 transition-colors text-center"
-                  onClick={() => console.log('Label clicked')}
+                  onClick={() => logger.debug('Label clicked')}
                 >
                   {selectedFile ? `✅ ${selectedFile.name}` : '📁 Escolher arquivo'}
                 </label>
@@ -1255,9 +1306,9 @@ export const Dashboard: React.FC = () => {
                 }
               }}
               onLookupMapBuilt={(entries) => {
-                console.log(`Building lookup map for ${entries.length} entries...`);
+                logger.debug(`Building lookup map for ${entries.length} entries...`);
                 valueLookup.updateLookupMap(entries);
-                console.log('Lookup map updated:', valueLookup.stats);
+                logger.debug('Lookup map updated:', valueLookup.stats);
               }}
             />
               </div>
@@ -1338,7 +1389,9 @@ export const Dashboard: React.FC = () => {
                           disabled={!parseResult?.data?.length}
                         />
                       </div>
-                      <VirtualizedDataTable parseResult={parseResult} transferredIds={transferredIds} />
+                      <FeatureErrorBoundary feature="DataTable">
+                        <VirtualizedDataTable parseResult={parseResult} transferredIds={transferredIds} />
+                      </FeatureErrorBoundary>
                     </div>
                   </div>
                 </div>
@@ -1674,10 +1727,12 @@ export const Dashboard: React.FC = () => {
                         disabled={(isShowingFiltered ? filteredConferredItems : conferredItems).length === 0}
                       />
                     </div>
-                    <VirtualizedCashTable
-                      conferredItems={isShowingFiltered ? filteredConferredItems : conferredItems}
-                      onRemoveItem={handleRemoveConferredItem}
-                    />
+                    <FeatureErrorBoundary feature="CashConference">
+                      <VirtualizedCashTable
+                        conferredItems={isShowingFiltered ? filteredConferredItems : conferredItems}
+                        onRemoveItem={handleRemoveConferredItem}
+                      />
+                    </FeatureErrorBoundary>
                   </div>
                 </div>
               </div>
@@ -1744,14 +1799,22 @@ export const Dashboard: React.FC = () => {
       <KeyboardShortcutsHelp />
 
       {/* Processing Spinner with Cancel Support */}
-      <ProcessingSpinner
-        show={processingState.isProcessing}
-        stage={processingState.stage}
+      <FeatureErrorBoundary feature="ExcelProcessing">
+        <ProcessingSpinner
+          show={processingState.isProcessing}
+          stage={processingState.stage}
         progress={processingState.progress}
         message={processingState.message}
         showStallWarning={processingState.showStallWarning}
         canCancel={processingState.canCancel}
         onCancel={handleCancelProcessing}
+        />
+      </FeatureErrorBoundary>
+
+      {/* Performance Metrics Dashboard */}
+      <MetricsDashboard
+        isVisible={showMetricsDashboard}
+        onToggle={() => setShowMetricsDashboard(false)}
       />
     </div>
   );

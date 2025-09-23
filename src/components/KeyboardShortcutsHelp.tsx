@@ -27,6 +27,53 @@ const shortcuts: KeyboardShortcut[] = [
     description: 'Fechar modais',
     context: 'Global'
   },
+  // Navigation shortcuts
+  {
+    keys: ['Alt', '1'],
+    description: 'Ir para aba Lançamentos',
+    context: 'Navegação'
+  },
+  {
+    keys: ['Alt', '2'],
+    description: 'Ir para aba Banking',
+    context: 'Navegação'
+  },
+  {
+    keys: ['Alt', '3'],
+    description: 'Ir para aba Conferência',
+    context: 'Navegação'
+  },
+  {
+    keys: ['Alt', '4'],
+    description: 'Ir para aba Relatórios',
+    context: 'Navegação'
+  },
+  {
+    keys: ['Alt', '5'],
+    description: 'Ir para aba Ações',
+    context: 'Navegação'
+  },
+  {
+    keys: ['Alt', '6'],
+    description: 'Ir para aba Backup',
+    context: 'Navegação'
+  },
+  // Action shortcuts
+  {
+    keys: ['Ctrl', 'E'],
+    description: 'Exportar dados da aba atual',
+    context: 'Ações'
+  },
+  {
+    keys: ['Ctrl', 'R'],
+    description: 'Atualizar dados',
+    context: 'Ações'
+  },
+  {
+    keys: ['Ctrl', 'Shift', 'M'],
+    description: 'Abrir/fechar dashboard de métricas',
+    context: 'Desenvolvimento'
+  },
   {
     keys: ['Enter'],
     description: 'Adicionar lançamento',
