@@ -138,10 +138,8 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
   const [showUndoModal, setShowUndoModal] = useState(false);
   const [launchToUndo, setLaunchToUndo] = useState<Launch | null>(null);
 
-  // Supabase sync states
+  // Loading states
   const [isLoading, setIsLoading] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteType, setDeleteType] = useState<'all' | 'date'>('all');
@@ -157,69 +155,6 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
     return date instanceof Date && !isNaN(date.getTime());
   };
 
-  // Auto-sync pending launches when connection is restored
-  const syncPendingLaunches = useCallback(async () => {
-    const pendingLaunches = launches.filter(l => l.needsSync && l.id.startsWith('launch-'));
-
-    if (pendingLaunches.length === 0) {
-      return;
-    }
-
-    logger.debug(`🔄 Tentando sincronizar ${pendingLaunches.length} lançamentos pendentes...`);
-    let syncedCount = 0;
-
-    for (const pendingLaunch of pendingLaunches) {
-      try {
-        // Validate date before processing
-        if (!isValidDate(pendingLaunch.date)) {
-          logger.warn('Skipping pending launch with invalid date:', pendingLaunch.id, pendingLaunch.date);
-          continue;
-        }
-
-        const launchData: SupabaseLaunch = {
-          launch_date: pendingLaunch.date.toISOString().split('T')[0],
-          payment_type: pendingLaunch.paymentType,
-          is_link: pendingLaunch.isLink || false,
-          value: pendingLaunch.value,
-          credit_1x: pendingLaunch.credit1x || 0,
-          credit_2x: pendingLaunch.credit2x || 0,
-          credit_3x: pendingLaunch.credit3x || 0,
-          credit_4x: pendingLaunch.credit4x || 0,
-          credit_5x: pendingLaunch.credit5x || 0,
-          observation: pendingLaunch.observation,
-          is_outgoing: pendingLaunch.value < 0,
-        };
-
-        const response = await launchesService.createLaunch(launchData);
-
-        if (response.success && response.data) {
-          // Update the launch with Supabase ID and remove needsSync flag
-          const updatedLaunch: Launch = {
-            ...pendingLaunch,
-            id: response.data.id || pendingLaunch.id,
-            timestamp: new Date(response.data.created_at || Date.now()),
-            needsSync: false,
-          };
-
-          // Update in launches array
-          const updatedLaunches = launches.map(l =>
-            l.id === pendingLaunch.id ? updatedLaunch : l
-          );
-          setLaunches(updatedLaunches);
-          saveLaunches(updatedLaunches);
-          syncedCount++;
-        }
-      } catch (error) {
-        logger.error(`Erro ao sincronizar lançamento ${pendingLaunch.id}:`, error);
-        // Keep the launch marked for sync
-      }
-    }
-
-    if (syncedCount > 0) {
-      toast.success(`✅ ${syncedCount} lançamento(s) sincronizado(s) automaticamente`);
-      logger.debug(`✅ ${syncedCount} lançamentos sincronizados com sucesso`);
-    }
-  }, [launches, setLaunches]);
 
   // Load launches from Supabase on component mount and when filter date changes
   // Moved after loadLaunchesFromSupabase definition to avoid reference error
@@ -390,88 +325,12 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
     }
   }, [deleteType, handleDeleteAllLaunches, handleDeleteLaunchesByDate]);
 
-  // Sync local launches to Supabase
-  const syncToSupabase = useCallback(async () => {
-    setIsSyncing(true);
-    try {
-      const localLaunches = loadLaunches();
-
-      if (localLaunches.length === 0) {
-        toast.info('Nenhum lançamento local para sincronizar');
-        return;
-      }
-
-      // Convert local format to Supabase format - filter out invalid dates
-      const validLaunches = localLaunches.filter(launch => {
-        if (!isValidDate(launch.date)) {
-          logger.warn('Skipping launch with invalid date for sync:', launch.id, launch.date);
-          return false;
-        }
-        return true;
-      });
-
-      const launchesToSync: SupabaseLaunch[] = validLaunches.map((launch): SupabaseLaunch => ({
-        launch_date: launch.date.toISOString().split('T')[0],
-        payment_type: launch.paymentType,
-        is_link: launch.isLink,
-        value: launch.value,
-        credit_1x: launch.credit1x,
-        credit_2x: launch.credit2x,
-        credit_3x: launch.credit3x,
-        credit_4x: launch.credit4x,
-        credit_5x: launch.credit5x,
-        observation: launch.observation,
-        is_outgoing: launch.value < 0,
-      }));
-
-      const response = await launchesService.syncLocalLaunches(launchesToSync);
-
-      if (response.success) {
-        // Clear local storage after successful sync
-        localStorage.removeItem(STORAGE_KEY);
-        // Reload from Supabase
-        await loadLaunchesFromSupabase();
-        setLastSyncTime(new Date());
-      }
-    } catch (error) {
-      logger.error('Error syncing to Supabase:', error);
-      toast.error('Erro ao sincronizar com o servidor');
-    } finally {
-      setIsSyncing(false);
-    }
-  }, [loadLaunchesFromSupabase]);
 
   // Load launches when component mounts or filter date changes
   useEffect(() => {
     loadLaunchesFromSupabase();
   }, [loadLaunchesFromSupabase]);
 
-  // Auto-sync pending launches periodically
-  useEffect(() => {
-    const syncInterval = setInterval(() => {
-      const pendingCount = launches.filter(l => l.needsSync).length;
-      if (pendingCount > 0) {
-        logger.debug(`🔄 Auto-sync: ${pendingCount} lançamentos pendentes encontrados`);
-        syncPendingLaunches();
-      }
-    }, 30000); // Check every 30 seconds
-
-    return () => clearInterval(syncInterval);
-  }, [launches, syncPendingLaunches]);
-
-  // Sync on window focus (when user returns to tab)
-  useEffect(() => {
-    const handleFocus = () => {
-      const pendingCount = launches.filter(l => l.needsSync).length;
-      if (pendingCount > 0) {
-        logger.debug('🔄 Janela focada - tentando sincronizar lançamentos pendentes');
-        syncPendingLaunches();
-      }
-    };
-
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
-  }, [launches, syncPendingLaunches]);
 
   // Debounced validation effect
   useEffect(() => {
@@ -846,8 +705,6 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
     return dateMatches && typeMatches;
   });
 
-  // Count pending launches for sync status
-  const pendingLaunchesCount = launches.filter(l => l.needsSync).length;
 
   const totals = {
     general: filteredLaunches.reduce((sum, item) => sum + item.value, 0),
@@ -1036,20 +893,10 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
 
               <button
                 onClick={handleAddLaunch}
-                disabled={!selectedMethod || !value || (selectedMethod === 'outgoing' && !observation.trim()) || isSyncing}
+                disabled={!selectedMethod || !value || (selectedMethod === 'outgoing' && !observation.trim())}
                 className="w-full px-3 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center space-x-2"
               >
-                {isSyncing ? (
-                  <>
-                    <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    <span>Salvando...</span>
-                  </>
-                ) : (
-                  <span>Adicionar</span>
-                )}
+                <span>Adicionar</span>
               </button>
             </div>
 
@@ -1152,47 +999,11 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
                 <h2 className="text-lg font-semibold text-gray-100">Lançamentos Manuais</h2>
                 <p className="text-sm text-gray-400 mt-1">
                   {filteredLaunches.length} lançamento(s) para {formatForDisplay(filterDate)}
-                  {pendingLaunchesCount > 0 && (
-                    <span className="ml-2 text-yellow-400">
-                      • {pendingLaunchesCount} pendente(s) de sincronização
-                    </span>
-                  )}
-                  {lastSyncTime && (
-                    <span className="ml-2 text-green-400">
-                      • Última sincronização: {lastSyncTime.toLocaleTimeString()}
-                    </span>
-                  )}
                 </p>
               </div>
 
-              {/* Sync Controls */}
+              {/* Controls */}
               <div className="flex items-center space-x-2">
-                {pendingLaunchesCount > 0 && (
-                  <button
-                    onClick={syncPendingLaunches}
-                    disabled={isSyncing}
-                    className="px-3 py-1 text-xs bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-600 text-white rounded-md transition-colors flex items-center space-x-1"
-                    title="Sincronizar lançamentos pendentes"
-                  >
-                    {isSyncing ? (
-                      <>
-                        <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        <span>Sincronizando</span>
-                      </>
-                    ) : (
-                      <>
-                        <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                        <span>Sync ({pendingLaunchesCount})</span>
-                      </>
-                    )}
-                  </button>
-                )}
-
                 <button
                   onClick={loadLaunchesFromSupabase}
                   disabled={isLoading}
@@ -1203,7 +1014,7 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
                     <>
                       <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 818-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
                       <span>Carregando</span>
                     </>
@@ -1213,30 +1024,6 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                       </svg>
                       <span>Carregar</span>
-                    </>
-                  )}
-                </button>
-
-                <button
-                  onClick={syncToSupabase}
-                  disabled={isSyncing || loadLaunches().length === 0}
-                  className="px-3 py-1 text-xs bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white rounded-md transition-colors flex items-center space-x-1"
-                  title="Sincronizar dados locais para Supabase"
-                >
-                  {isSyncing ? (
-                    <>
-                      <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      <span>Sincronizando</span>
-                    </>
-                  ) : (
-                    <>
-                      <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                      </svg>
-                      <span>Sync Local</span>
                     </>
                   )}
                 </button>
@@ -1515,10 +1302,10 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
                 <div className="flex space-x-3">
                   <button
                     onClick={handleConfirmUndo}
-                    disabled={isSyncing}
+                    disabled={false}
                     className="flex-1 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-red-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {isSyncing ? (
+                    {isDeleting ? (
                       <div className="flex items-center justify-center">
                         <svg className="animate-spin h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -1532,7 +1319,7 @@ export const LaunchTab: React.FC<LaunchTabProps> = ({ currentDate, operationDate
                   </button>
                   <button
                     onClick={handleCancelUndo}
-                    disabled={isSyncing}
+                    disabled={false}
                     className="flex-1 px-4 py-2 text-sm font-medium text-gray-300 bg-gray-700 border border-gray-600 rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-gray-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Cancelar
