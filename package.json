@@ -9,6 +9,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "start": "vite preview --host 0.0.0.0 --port $PORT",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
@@ -24,6 +25,9 @@
     "test:e2e:report": "playwright show-report",
     "mcp:server": "npx @supabase/mcp-server-supabase --read-only --project-ref=artgvpolienazfaalwtk",
     "mcp:server:full": "npx @supabase/mcp-server-supabase --project-ref=artgvpolienazfaalwtk"
+  },
+  "engines": {
+    "node": ">=18"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.1",
@@ -80,3 +84,4 @@
     "vitest": "^3.2.4"
   }
 }
+
