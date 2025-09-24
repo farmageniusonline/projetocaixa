@@ -16,7 +16,8 @@
       "Bash(npm run start:*)",
       "Bash(npm run:*)",
       "Bash(git commit:*)",
-      "Bash(git pull:*)"
+      "Bash(git pull:*)",
+      "Bash(mkdir:*)"
     ],
     "deny": [],
     "ask": []
